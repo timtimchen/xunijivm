@@ -104,9 +104,17 @@ public:
         loadInstruction(0, JMP, startPoint, 0);
     }
     
+    void setByte(int addr, char data) {
+        MEM[addr] = data;
+    }
+    
     int getInt(int addr) {
         int * p = reinterpret_cast<int *>(& MEM[addr]);
         return *p;
+    }
+    
+    bool isRegsterName(std::string name) {
+        return (name.size() == 3 && name.at(0) == 'R' && name.at(2) == ',' && name.at(1) <= '7' && name.at(1) >= '0');
     }
     
     bool assemblyPass1(std::string fileName) {
@@ -229,6 +237,12 @@ public:
                             case STB:
                                 break;
                             case LDB:
+                                if (tokenCounter + 2 < tokens.size() && isRegsterName(tokens[tokenCounter + 1]) && SymbolTable.find(tokens[tokenCounter + 2]) != SymbolTable.end()) {
+                                    loadInstruction(addrCounter, LDB, tokens[tokenCounter + 1].at(1) - '0', SymbolTable[tokens[tokenCounter + 2]]);
+                                } else {
+                                    std::cout << "Command Line Error. (line: " << lineCounter << ")\n";
+                                    return false;
+                                }
                                 break;
                             case ADD:
                                 break;
@@ -258,6 +272,24 @@ public:
                         addrCounter += FIX_LENGTH;
                     } else {
                         // it is a directive
+                        if (tokenCounter + 1 < tokens.size()) {
+                            if (OpCodeTable[tokens[tokenCounter]] == _BYT) {  // handle character format like 'c'
+                                if (tokens[tokenCounter + 1].size() == 3 && tokens[tokenCounter + 1].at(0) == '\'' && tokens[tokenCounter + 1].at(2) == '\'') {
+                                    setByte(addrCounter, tokens[tokenCounter + 1].at(1));
+                                } else { // handle number format like 10
+                                    if (tokens[tokenCounter + 1].find_first_not_of("0123456789") == std::string::npos) {
+                                        setByte(addrCounter, static_cast<char>(std::stoi(tokens[tokenCounter + 1])));
+                                    } else {
+                                        std::cout << "Byte data Format Error. (line: " << lineCounter << ")\n";
+                                        return false;
+                                    }
+                                }
+                            } else {  // directive of .INT
+                            }
+                        } else {
+                            std::cout << "Command Line too short. (line: " << lineCounter << ")\n";
+                            return false;
+                        }
                         addrCounter += -OpCodeTable[tokens[tokenCounter]];
                     }
                 }
@@ -304,6 +336,13 @@ public:
                 case STB:
                     break;
                 case LDB:
+                    if (ip->Oprand1 >= 0 && ip->Oprand1 <= 7 && ip->Oprand2 < MEM_SIZE) {
+                        REG[ip->Oprand1] = static_cast<int>(MEM[ip->Oprand2]);
+                    } else {
+                        std::cout << "Unexpected Error!" << std::endl;
+                        return;
+                    }
+                    PC += FIX_LENGTH;
                     break;
                 case ADD:
                     break;
@@ -324,15 +363,17 @@ public:
                 case TRP:
                     switch (ip -> Oprand1) {
                         case 0:
-                            std::cout << "Program end.\n";
                             programStop = true;
                             break;
-                            
+                        case 3:
+                            std::cout << static_cast<char>(REG[3]);
+                            break;
                         default:
                             std::cout << "Unexpected Error!" << std::endl;
-                            programStop = true;
+                            return;
                             break;
                     }
+                    PC += FIX_LENGTH;
                     break;
             }
         }
