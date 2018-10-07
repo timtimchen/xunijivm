@@ -14,6 +14,7 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <iterator>
 
 #define REG_SIZE 8  // total general regesters
 #define MEM_SIZE 10000  // total bytes of memory
