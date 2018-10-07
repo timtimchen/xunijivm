@@ -272,10 +272,28 @@ public:
                             case ADI:
                                 break;
                             case SUB:
+                                if (tokenCounter + 2 < tokens.size() && isRegsterName(tokens[tokenCounter + 1]) && isRegsterName(tokens[tokenCounter + 2])) {
+                                    loadInstruction(addrCounter, SUB, tokens[tokenCounter + 1].at(1) - '0', tokens[tokenCounter + 2].at(1) - '0');
+                                } else {
+                                    std::cout << "Command Line Error. (line: " << lineCounter << ")\n";
+                                    return false;
+                                }
                                 break;
                             case MUL:
+                                if (tokenCounter + 2 < tokens.size() && isRegsterName(tokens[tokenCounter + 1]) && isRegsterName(tokens[tokenCounter + 2])) {
+                                    loadInstruction(addrCounter, MUL, tokens[tokenCounter + 1].at(1) - '0', tokens[tokenCounter + 2].at(1) - '0');
+                                } else {
+                                    std::cout << "Command Line Error. (line: " << lineCounter << ")\n";
+                                    return false;
+                                }
                                 break;
                             case DIV:
+                                if (tokenCounter + 2 < tokens.size() && isRegsterName(tokens[tokenCounter + 1]) && isRegsterName(tokens[tokenCounter + 2])) {
+                                    loadInstruction(addrCounter, DIV, tokens[tokenCounter + 1].at(1) - '0', tokens[tokenCounter + 2].at(1) - '0');
+                                } else {
+                                    std::cout << "Command Line Error. (line: " << lineCounter << ")\n";
+                                    return false;
+                                }
                                 break;
                             case AND:
                                 break;
@@ -401,10 +419,31 @@ public:
                 case ADI:
                     break;
                 case SUB:
+                    if (ip->Oprand1 >= 0 && ip->Oprand1 <= REG_SIZE && ip->Oprand2 >= 0 && ip->Oprand2 < REG_SIZE) {
+                        REG[ip->Oprand1] -= REG[ip->Oprand2];
+                    } else {
+                        std::cout << "Unexpected Error!" << std::endl;
+                        return;
+                    }
+                    PC += FIX_LENGTH;
                     break;
                 case MUL:
+                    if (ip->Oprand1 >= 0 && ip->Oprand1 <= REG_SIZE && ip->Oprand2 >= 0 && ip->Oprand2 < REG_SIZE) {
+                        REG[ip->Oprand1] *= REG[ip->Oprand2];
+                    } else {
+                        std::cout << "Unexpected Error!" << std::endl;
+                        return;
+                    }
+                    PC += FIX_LENGTH;
                     break;
                 case DIV:
+                    if (ip->Oprand1 >= 0 && ip->Oprand1 <= REG_SIZE && ip->Oprand2 >= 0 && ip->Oprand2 < REG_SIZE) {
+                        REG[ip->Oprand1] /= REG[ip->Oprand2];
+                    } else {
+                        std::cout << "Unexpected Error!" << std::endl;
+                        return;
+                    }
+                    PC += FIX_LENGTH;
                     break;
                 case AND:
                     break;
