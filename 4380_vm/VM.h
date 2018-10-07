@@ -108,13 +108,18 @@ public:
         MEM[addr] = data;
     }
     
+    void setInt(int addr, int data) {
+        int *p = reinterpret_cast<int *>(& MEM[addr]);
+        *p = data;
+    }
+    
     int getInt(int addr) {
-        int * p = reinterpret_cast<int *>(& MEM[addr]);
+        int *p = reinterpret_cast<int *>(& MEM[addr]);
         return *p;
     }
     
     bool isRegsterName(std::string name) {
-        return (name.size() == 3 && name.at(0) == 'R' && name.at(2) == ',' && name.at(1) <= '7' && name.at(1) >= '0');
+        return (name.size() == 3 && name.at(0) == 'R' && name.at(2) == ',' && name.at(1) <= '7' && name.at(1) >= '0') || (name.size() == 2 && name.at(0) == 'R' && name.at(1) <= '7' && name.at(1) >= '0');
     }
     
     bool assemblyPass1(std::string fileName) {
@@ -227,12 +232,24 @@ public:
                             case BRZ:
                                 break;
                             case MOV:
+                                if (tokenCounter + 2 < tokens.size() && isRegsterName(tokens[tokenCounter + 1]) && isRegsterName(tokens[tokenCounter + 2])) {
+                                    loadInstruction(addrCounter, MOV, tokens[tokenCounter + 1].at(1) - '0', tokens[tokenCounter + 2].at(1) - '0');
+                                } else {
+                                    std::cout << "Command Line Error. (line: " << lineCounter << ")\n";
+                                    return false;
+                                }
                                 break;
                             case LDA:
                                 break;
                             case STR:
                                 break;
                             case LDR:
+                                if (tokenCounter + 2 < tokens.size() && isRegsterName(tokens[tokenCounter + 1]) && SymbolTable.find(tokens[tokenCounter + 2]) != SymbolTable.end()) {
+                                    loadInstruction(addrCounter, LDR, tokens[tokenCounter + 1].at(1) - '0', SymbolTable[tokens[tokenCounter + 2]]);
+                                } else {
+                                    std::cout << "Command Line Error. (line: " << lineCounter << ")\n";
+                                    return false;
+                                }
                                 break;
                             case STB:
                                 break;
@@ -245,6 +262,12 @@ public:
                                 }
                                 break;
                             case ADD:
+                                if (tokenCounter + 2 < tokens.size() && isRegsterName(tokens[tokenCounter + 1]) && isRegsterName(tokens[tokenCounter + 2])) {
+                                    loadInstruction(addrCounter, ADD, tokens[tokenCounter + 1].at(1) - '0', tokens[tokenCounter + 2].at(1) - '0');
+                                } else {
+                                    std::cout << "Command Line Error. (line: " << lineCounter << ")\n";
+                                    return false;
+                                }
                                 break;
                             case ADI:
                                 break;
@@ -280,11 +303,17 @@ public:
                                     if (tokens[tokenCounter + 1].find_first_not_of("0123456789") == std::string::npos) {
                                         setByte(addrCounter, static_cast<char>(std::stoi(tokens[tokenCounter + 1])));
                                     } else {
-                                        std::cout << "Byte data Format Error. (line: " << lineCounter << ")\n";
+                                        std::cout << ".BYT data Format Error. (line: " << lineCounter << ")\n";
                                         return false;
                                     }
                                 }
                             } else {  // directive of .INT
+                                if (tokens[tokenCounter + 1].find_first_not_of("0123456789") == std::string::npos) {
+                                    setInt(addrCounter, std::stoi(tokens[tokenCounter + 1]));
+                                } else {
+                                    std::cout << ".INT data Format Error. (line: " << lineCounter << ")\n";
+                                    return false;
+                                }
                             }
                         } else {
                             std::cout << "Command Line too short. (line: " << lineCounter << ")\n";
@@ -326,17 +355,33 @@ public:
                 case BRZ:
                     break;
                 case MOV:
+                    if (ip->Oprand1 >= 0 && ip->Oprand1 <= REG_SIZE && ip->Oprand2 >= 0 && ip->Oprand2 < REG_SIZE) {
+                        REG[ip->Oprand1] = REG[ip->Oprand2];
+                    } else {
+                        std::cout << "Unexpected Error!" << std::endl;
+                        return;
+                    }
+                    PC += FIX_LENGTH;
                     break;
                 case LDA:
                     break;
                 case STR:
                     break;
                 case LDR:
+                    if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 < MEM_SIZE) {
+                        int *p = reinterpret_cast<int *>(&MEM[ip->Oprand2]);
+                        REG[ip->Oprand1] = *p;
+                    } else {
+                        std::cout << "Unexpected Error!" << std::endl;
+                        return;
+                    }
+                    PC += FIX_LENGTH;
                     break;
                 case STB:
                     break;
                 case LDB:
-                    if (ip->Oprand1 >= 0 && ip->Oprand1 <= 7 && ip->Oprand2 < MEM_SIZE) {
+                    if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 < MEM_SIZE) {
+                        REG[ip->Oprand1] = 0; // clear the register
                         REG[ip->Oprand1] = static_cast<int>(MEM[ip->Oprand2]);
                     } else {
                         std::cout << "Unexpected Error!" << std::endl;
@@ -345,6 +390,13 @@ public:
                     PC += FIX_LENGTH;
                     break;
                 case ADD:
+                    if (ip->Oprand1 >= 0 && ip->Oprand1 <= REG_SIZE && ip->Oprand2 >= 0 && ip->Oprand2 < REG_SIZE) {
+                        REG[ip->Oprand1] += REG[ip->Oprand2];
+                    } else {
+                        std::cout << "Unexpected Error!" << std::endl;
+                        return;
+                    }
+                    PC += FIX_LENGTH;
                     break;
                 case ADI:
                     break;
@@ -364,6 +416,9 @@ public:
                     switch (ip -> Oprand1) {
                         case 0:
                             programStop = true;
+                            break;
+                        case 1:
+                            std::cout << REG[3];
                             break;
                         case 3:
                             std::cout << static_cast<char>(REG[3]);
