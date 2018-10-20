@@ -1,0 +1,39 @@
+; ############################
+; SC 4380 Project 2
+; by Jinghong Chen
+; ############################
+
+SIZE	.INT	10
+ARR		.INT	10
+		.INT	2
+		.INT	3
+		.INT	4
+		.INT	15
+		.INT	-6
+		.INT	7
+		.INT	8
+		.INT	9
+		.INT	10
+i		.INT	0
+sum		.INT	0
+temp	.INT	0
+result	.INT	0		
+		
+INTSIZE	.INT	4
+comma	.BYT	','
+newline	.BYT	10
+space	.BYT	32
+
+START
+		LDR		R7, SIZE		;get size
+		LDR		R6, i			;get i
+WHILE1	MOV		R5, R6
+		CMP		R5, R7
+		BRZ		R5, WEND1		;if i == size, end loop
+		MOV		R4, R6
+		LDR		R3, INTSIZE
+		ADI		R6, 1			;i++
+		JMP		WHILE1
+WEND1
+
+END		TRP		0

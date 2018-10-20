@@ -19,6 +19,7 @@
 #define REG_SIZE 8  // total general regesters
 #define MEM_SIZE 10000  // total bytes of memory
 #define FIX_LENGTH 12  // fixed length of an instrution
+#define INT_SIZE 4  // size of an integer
 #define JMP 1
 #define JMR 2
 #define BNZ 3
@@ -40,6 +41,11 @@
 #define OR 19
 #define CMP 20
 #define TRP 21
+#define STRI 22
+#define LDRI 23
+#define STBI 24
+#define LDBI 25
+#define NOP 100
 #define _INT -4
 #define _BYT -1
 
@@ -82,6 +88,7 @@ public:
         OpCodeTable.insert(std::pair<std::string, int>("OR", OR));
         OpCodeTable.insert(std::pair<std::string, int>("CMP", CMP));
         OpCodeTable.insert(std::pair<std::string, int>("TRP", TRP));
+        OpCodeTable.insert(std::pair<std::string, int>("NOP", NOP));
         OpCodeTable.insert(std::pair<std::string, int>(".INT", _INT));
         OpCodeTable.insert(std::pair<std::string, int>(".BYT", _BYT));
     }
@@ -119,6 +126,19 @@ public:
         return *p;
     }
     
+    bool isNumber(std::string str) {
+        if (str.size() < 1) return false;
+        std::string numStr;
+        // check minus sign
+        if (str.at(0) == '-') {
+            // if it is signed, ignore the minus sign
+            numStr = str.substr(1);
+        } else {
+            numStr = str;
+        }
+        return (numStr.size() > 0) && (numStr.find_first_not_of("0123456789") == std::string::npos);
+    }
+    
     bool isRegsterName(std::string name) {
         return (name.size() == 3 && name.at(0) == 'R' && name.at(2) == ',' && name.at(1) <= '7' && name.at(1) >= '0') || (name.size() == 2 && name.at(0) == 'R' && name.at(1) <= '7' && name.at(1) >= '0');
     }
@@ -140,31 +160,45 @@ public:
                     // split a line into tokens
                     std::istringstream iss(line);
                     std::vector<std::string> tokens((std::istream_iterator<std::string>(iss)),std::istream_iterator<std::string>());
-                    // every line of code should contain at least two token
-                    if (tokens.size() < 2) {
+                    if (tokens.size() < 1) {
                         std::cout << "Command line too short. (line: " << lineCounter << ")\n";
                         return false;
                     }
-                    tokenCounter = 0;
-                    if (OpCodeTable.find(tokens[tokenCounter]) == OpCodeTable.end()) {
-                        // if first token is a Label, check if it is a new one, if yes, put it in the Symbol table
-                        if (SymbolTable.find(tokens[tokenCounter]) != SymbolTable.end()) {
-                            std::cout << "Repeated Label. (line: " << lineCounter << ")\n";
+                    if (tokens.size() < 2) {
+                        if (OpCodeTable.find(tokens[0]) == OpCodeTable.end()) {
+                            if (SymbolTable.find(tokens[0]) != SymbolTable.end()) {
+                                std::cout << "Repeated Label. (line: " << lineCounter << ")\n";
+                                return false;
+                            }
+                            // treat a single label as a NOP command
+                            SymbolTable.insert(std::pair<std::string, int>(tokens[0], addrCounter));
+                            addrCounter += FIX_LENGTH;
+                        } else {
+                            std::cout << "Command line too short. (line: " << lineCounter << ")\n";
                             return false;
                         }
-                        SymbolTable.insert(std::pair<std::string, int>(tokens[tokenCounter], addrCounter));
-                        tokenCounter++;
-                        if (OpCodeTable.find(tokens[tokenCounter]) == OpCodeTable.end()) {
-                            std::cout << "Error format command line. (line: " << lineCounter << ")\n";
-                            return false;
-                        }
-                    } // after this checking, we found a OpCode, and the tokenCounter is pointing to the OpCode
-                    if (OpCodeTable[tokens[tokenCounter]] > 0) {
-                        // it is an Instruction
-                        addrCounter += FIX_LENGTH;
                     } else {
-                        // it is a directive
-                        addrCounter += -OpCodeTable[tokens[tokenCounter]];
+                        tokenCounter = 0;
+                        if (OpCodeTable.find(tokens[tokenCounter]) == OpCodeTable.end()) {
+                            // if first token is a Label, check if it is a new one, if yes, put it in the Symbol table
+                            if (SymbolTable.find(tokens[tokenCounter]) != SymbolTable.end()) {
+                                std::cout << "Repeated Label. (line: " << lineCounter << ")\n";
+                                return false;
+                            }
+                            SymbolTable.insert(std::pair<std::string, int>(tokens[tokenCounter], addrCounter));
+                            tokenCounter++;
+                            if (OpCodeTable.find(tokens[tokenCounter]) == OpCodeTable.end()) {
+                                std::cout << "Error format command line. (line: " << lineCounter << ")\n";
+                                return false;
+                            }
+                        } // after this checking, we found a OpCode, and the tokenCounter is pointing to the OpCode
+                        if (OpCodeTable[tokens[tokenCounter]] > 0) {
+                            // it is an Instruction
+                            addrCounter += FIX_LENGTH;
+                        } else {
+                            // it is a directive
+                            addrCounter += -OpCodeTable[tokens[tokenCounter]];
+                        }
                     }
                 }
             }
@@ -194,151 +228,268 @@ public:
                     // split a line into tokens
                     std::istringstream iss(line);
                     std::vector<std::string> tokens((std::istream_iterator<std::string>(iss)),std::istream_iterator<std::string>());
-                    // every line of code should contain at least two token
-                    if (tokens.size() < 2) {
+                    if (tokens.size() < 1) {
                         std::cout << "Command line too short. (line: " << lineCounter << ")\n";
                         return false;
                     }
-                    tokenCounter = 0;
-                    if (OpCodeTable.find(tokens[tokenCounter]) == OpCodeTable.end()) {
-                        tokenCounter++;
-                        if (OpCodeTable.find(tokens[tokenCounter]) == OpCodeTable.end()) {
-                            std::cout << "Error format command line. (line: " << lineCounter << ")\n";
+                    if (tokens.size() < 2) {
+                        if (OpCodeTable.find(tokens[0]) == OpCodeTable.end()) {
+                            if (SymbolTable.find(tokens[0]) == SymbolTable.end()) {
+                                std::cout << "Unexpected error  . (line: " << lineCounter << ")\n";
+                                return false;
+                            }
+                            // treat a single label as a NOP command
+                            loadInstruction(addrCounter, NOP, 0, 0);
+                            addrCounter += FIX_LENGTH;
+                        } else {
+                            std::cout << "Command line too short. (line: " << lineCounter << ")\n";
                             return false;
                         }
-                    } // after this checking, we found a OpCode, and the tokenCounter is pointing to the OpCode
-                    if (OpCodeTable[tokens[tokenCounter]] > 0) {
-                        // it is an Instruction
-                        if (!programStart) {
-                            setProgramStartPoint(addrCounter);
-                            programStart = true;
-                        }
-                        switch (OpCodeTable[tokens[tokenCounter]]) {
-                            case JMP:
-                                if (tokenCounter + 1 < tokens.size() && SymbolTable.find(tokens[tokenCounter + 1]) != SymbolTable.end()) {
-                                    loadInstruction(addrCounter, JMP, SymbolTable[tokens[tokenCounter + 1]], 0);
-                                } else {
-                                    std::cout << "Command Line Error. (line: " << lineCounter << ")\n";
-                                    return false;
-                                }
-                                break;
-                            case JMR:
-                                break;
-                            case BNZ:
-                                break;
-                            case BGT:
-                                break;
-                            case BLT:
-                                break;
-                            case BRZ:
-                                break;
-                            case MOV:
-                                if (tokenCounter + 2 < tokens.size() && isRegsterName(tokens[tokenCounter + 1]) && isRegsterName(tokens[tokenCounter + 2])) {
-                                    loadInstruction(addrCounter, MOV, tokens[tokenCounter + 1].at(1) - '0', tokens[tokenCounter + 2].at(1) - '0');
-                                } else {
-                                    std::cout << "Command Line Error. (line: " << lineCounter << ")\n";
-                                    return false;
-                                }
-                                break;
-                            case LDA:
-                                break;
-                            case STR:
-                                break;
-                            case LDR:
-                                if (tokenCounter + 2 < tokens.size() && isRegsterName(tokens[tokenCounter + 1]) && SymbolTable.find(tokens[tokenCounter + 2]) != SymbolTable.end()) {
-                                    loadInstruction(addrCounter, LDR, tokens[tokenCounter + 1].at(1) - '0', SymbolTable[tokens[tokenCounter + 2]]);
-                                } else {
-                                    std::cout << "Command Line Error. (line: " << lineCounter << ")\n";
-                                    return false;
-                                }
-                                break;
-                            case STB:
-                                break;
-                            case LDB:
-                                if (tokenCounter + 2 < tokens.size() && isRegsterName(tokens[tokenCounter + 1]) && SymbolTable.find(tokens[tokenCounter + 2]) != SymbolTable.end()) {
-                                    loadInstruction(addrCounter, LDB, tokens[tokenCounter + 1].at(1) - '0', SymbolTable[tokens[tokenCounter + 2]]);
-                                } else {
-                                    std::cout << "Command Line Error. (line: " << lineCounter << ")\n";
-                                    return false;
-                                }
-                                break;
-                            case ADD:
-                                if (tokenCounter + 2 < tokens.size() && isRegsterName(tokens[tokenCounter + 1]) && isRegsterName(tokens[tokenCounter + 2])) {
-                                    loadInstruction(addrCounter, ADD, tokens[tokenCounter + 1].at(1) - '0', tokens[tokenCounter + 2].at(1) - '0');
-                                } else {
-                                    std::cout << "Command Line Error. (line: " << lineCounter << ")\n";
-                                    return false;
-                                }
-                                break;
-                            case ADI:
-                                break;
-                            case SUB:
-                                if (tokenCounter + 2 < tokens.size() && isRegsterName(tokens[tokenCounter + 1]) && isRegsterName(tokens[tokenCounter + 2])) {
-                                    loadInstruction(addrCounter, SUB, tokens[tokenCounter + 1].at(1) - '0', tokens[tokenCounter + 2].at(1) - '0');
-                                } else {
-                                    std::cout << "Command Line Error. (line: " << lineCounter << ")\n";
-                                    return false;
-                                }
-                                break;
-                            case MUL:
-                                if (tokenCounter + 2 < tokens.size() && isRegsterName(tokens[tokenCounter + 1]) && isRegsterName(tokens[tokenCounter + 2])) {
-                                    loadInstruction(addrCounter, MUL, tokens[tokenCounter + 1].at(1) - '0', tokens[tokenCounter + 2].at(1) - '0');
-                                } else {
-                                    std::cout << "Command Line Error. (line: " << lineCounter << ")\n";
-                                    return false;
-                                }
-                                break;
-                            case DIV:
-                                if (tokenCounter + 2 < tokens.size() && isRegsterName(tokens[tokenCounter + 1]) && isRegsterName(tokens[tokenCounter + 2])) {
-                                    loadInstruction(addrCounter, DIV, tokens[tokenCounter + 1].at(1) - '0', tokens[tokenCounter + 2].at(1) - '0');
-                                } else {
-                                    std::cout << "Command Line Error. (line: " << lineCounter << ")\n";
-                                    return false;
-                                }
-                                break;
-                            case AND:
-                                break;
-                            case OR:
-                                break;
-                            case CMP:
-                                break;
-                            case TRP:
-                                if (tokenCounter + 1 < tokens.size() && tokens[tokenCounter + 1].size() == 1 && tokens[tokenCounter + 1].at(0) <= '4' && tokens[tokenCounter + 1].at(0) >= '0') {
-                                    loadInstruction(addrCounter, TRP, tokens[tokenCounter + 1].at(0) - '0', 0);
-                                } else {
-                                    std::cout << "Command Line Error. (line: " << lineCounter << ")\n";
-                                    return false;
-                                }
-                                break;
-                        }
-                        addrCounter += FIX_LENGTH;
                     } else {
-                        // it is a directive
-                        if (tokenCounter + 1 < tokens.size()) {
-                            if (OpCodeTable[tokens[tokenCounter]] == _BYT) {  // handle character format like 'c'
-                                if (tokens[tokenCounter + 1].size() == 3 && tokens[tokenCounter + 1].at(0) == '\'' && tokens[tokenCounter + 1].at(2) == '\'') {
-                                    setByte(addrCounter, tokens[tokenCounter + 1].at(1));
-                                } else { // handle number format like 10
-                                    if (tokens[tokenCounter + 1].find_first_not_of("0123456789") == std::string::npos) {
-                                        setByte(addrCounter, static_cast<char>(std::stoi(tokens[tokenCounter + 1])));
+                        tokenCounter = 0;
+                        if (OpCodeTable.find(tokens[tokenCounter]) == OpCodeTable.end()) {
+                            tokenCounter++;
+                            if (OpCodeTable.find(tokens[tokenCounter]) == OpCodeTable.end()) {
+                                std::cout << "Error format command line. (line: " << lineCounter << ")\n";
+                                return false;
+                            }
+                        } // after this checking, we found a OpCode, and the tokenCounter is pointing to the OpCode
+                        if (OpCodeTable[tokens[tokenCounter]] > 0) {
+                            // it is an Instruction
+                            if (!programStart) {
+                                setProgramStartPoint(addrCounter);
+                                programStart = true;
+                            }
+                            switch (OpCodeTable[tokens[tokenCounter]]) {
+                                case JMP:
+                                    if (tokenCounter + 1 < tokens.size() && SymbolTable.find(tokens[tokenCounter + 1]) != SymbolTable.end()) {
+                                        loadInstruction(addrCounter, JMP, SymbolTable[tokens[tokenCounter + 1]], 0);
                                     } else {
-                                        std::cout << ".BYT data Format Error. (line: " << lineCounter << ")\n";
+                                        std::cout << "Command Line Error. (line: " << lineCounter << ")\n";
+                                        return false;
+                                    }
+                                    break;
+                                case JMR:
+                                    if (tokenCounter + 1 < tokens.size() && isRegsterName(tokens[tokenCounter + 1])) {
+                                        loadInstruction(addrCounter, JMR, tokens[tokenCounter + 1].at(1) - '0', 0);
+                                    } else {
+                                        std::cout << "Command Line Error. (line: " << lineCounter << ")\n";
+                                        return false;
+                                    }
+                                    break;
+                                case BNZ:
+                                    if (tokenCounter + 2 < tokens.size() && isRegsterName(tokens[tokenCounter + 1]) && SymbolTable.find(tokens[tokenCounter + 2]) != SymbolTable.end()) {
+                                        loadInstruction(addrCounter, BNZ, tokens[tokenCounter + 1].at(1) - '0', SymbolTable[tokens[tokenCounter + 2]]);
+                                    } else {
+                                        std::cout << "Command Line Error. (line: " << lineCounter << ")\n";
+                                        return false;
+                                    }
+                                    break;
+                                case BGT:
+                                    if (tokenCounter + 2 < tokens.size() && isRegsterName(tokens[tokenCounter + 1]) && SymbolTable.find(tokens[tokenCounter + 2]) != SymbolTable.end()) {
+                                        loadInstruction(addrCounter, BGT, tokens[tokenCounter + 1].at(1) - '0', SymbolTable[tokens[tokenCounter + 2]]);
+                                    } else {
+                                        std::cout << "Command Line Error. (line: " << lineCounter << ")\n";
+                                        return false;
+                                    }
+                                    break;
+                                case BLT:
+                                    if (tokenCounter + 2 < tokens.size() && isRegsterName(tokens[tokenCounter + 1]) && SymbolTable.find(tokens[tokenCounter + 2]) != SymbolTable.end()) {
+                                        loadInstruction(addrCounter, BLT, tokens[tokenCounter + 1].at(1) - '0', SymbolTable[tokens[tokenCounter + 2]]);
+                                    } else {
+                                        std::cout << "Command Line Error. (line: " << lineCounter << ")\n";
+                                        return false;
+                                    }
+                                    break;
+                                case BRZ:
+                                    if (tokenCounter + 2 < tokens.size() && isRegsterName(tokens[tokenCounter + 1]) && SymbolTable.find(tokens[tokenCounter + 2]) != SymbolTable.end()) {
+                                        loadInstruction(addrCounter, BRZ, tokens[tokenCounter + 1].at(1) - '0', SymbolTable[tokens[tokenCounter + 2]]);
+                                    } else {
+                                        std::cout << "Command Line Error. (line: " << lineCounter << ")\n";
+                                        return false;
+                                    }
+                                    break;
+                                case MOV:
+                                    if (tokenCounter + 2 < tokens.size() && isRegsterName(tokens[tokenCounter + 1]) && isRegsterName(tokens[tokenCounter + 2])) {
+                                        loadInstruction(addrCounter, MOV, tokens[tokenCounter + 1].at(1) - '0', tokens[tokenCounter + 2].at(1) - '0');
+                                    } else {
+                                        std::cout << "Command Line Error. (line: " << lineCounter << ")\n";
+                                        return false;
+                                    }
+                                    break;
+                                case LDA:
+                                    if (tokenCounter + 2 < tokens.size() && isRegsterName(tokens[tokenCounter + 1]) && SymbolTable.find(tokens[tokenCounter + 2]) != SymbolTable.end()) {
+                                        loadInstruction(addrCounter, LDA, tokens[tokenCounter + 1].at(1) - '0', SymbolTable[tokens[tokenCounter + 2]]);
+                                    } else {
+                                        std::cout << "Command Line Error. (line: " << lineCounter << ")\n";
+                                        return false;
+                                    }
+                                    break;
+                                case STR:
+                                    if (tokenCounter + 2 < tokens.size() && isRegsterName(tokens[tokenCounter + 1])) {
+                                        if (isRegsterName(tokens[tokenCounter + 2])) {
+                                            loadInstruction(addrCounter, STRI, tokens[tokenCounter + 1].at(1) - '0', tokens[tokenCounter + 2].at(1) - '0');
+                                        } else if (SymbolTable.find(tokens[tokenCounter + 2]) != SymbolTable.end()) {
+                                            loadInstruction(addrCounter, STR, tokens[tokenCounter + 1].at(1) - '0', SymbolTable[tokens[tokenCounter + 2]]);
+                                        } else {
+                                            std::cout << "Command Line Error1. (line: " << lineCounter << ")\n";
+                                            return false;
+                                        }
+                                    } else {
+                                        std::cout << "Command Line Error. (line: " << lineCounter << ")\n";
+                                        return false;
+                                    }
+                                    break;
+                                case LDR:
+                                    if (tokenCounter + 2 < tokens.size() && isRegsterName(tokens[tokenCounter + 1])) {
+                                        if (isRegsterName(tokens[tokenCounter + 2])) {
+                                            loadInstruction(addrCounter, LDRI, tokens[tokenCounter + 1].at(1) - '0', tokens[tokenCounter + 2].at(1) - '0');
+                                        } else if (SymbolTable.find(tokens[tokenCounter + 2]) != SymbolTable.end()) {
+                                            loadInstruction(addrCounter, LDR, tokens[tokenCounter + 1].at(1) - '0', SymbolTable[tokens[tokenCounter + 2]]);
+                                        } else {
+                                            std::cout << "Command Line Error1. (line: " << lineCounter << ")\n";
+                                            return false;
+                                        }
+                                    } else {
+                                        std::cout << "Command Line Error. (line: " << lineCounter << ")\n";
+                                        return false;
+                                    }
+                                    break;
+                                case STB:
+                                    if (tokenCounter + 2 < tokens.size() && isRegsterName(tokens[tokenCounter + 1])) {
+                                        if (isRegsterName(tokens[tokenCounter + 2])) {
+                                            loadInstruction(addrCounter, STBI, tokens[tokenCounter + 1].at(1) - '0', tokens[tokenCounter + 2].at(1) - '0');
+                                        } else if (SymbolTable.find(tokens[tokenCounter + 2]) != SymbolTable.end()) {
+                                            loadInstruction(addrCounter, STB, tokens[tokenCounter + 1].at(1) - '0', SymbolTable[tokens[tokenCounter + 2]]);
+                                        } else {
+                                            std::cout << "Command Line Error1. (line: " << lineCounter << ")\n";
+                                            return false;
+                                        }
+                                    } else {
+                                        std::cout << "Command Line Error. (line: " << lineCounter << ")\n";
+                                        return false;
+                                    }
+                                    break;
+                                case LDB:
+                                    if (tokenCounter + 2 < tokens.size() && isRegsterName(tokens[tokenCounter + 1])) {
+                                        if (isRegsterName(tokens[tokenCounter + 2])) {
+                                            loadInstruction(addrCounter, LDBI, tokens[tokenCounter + 1].at(1) - '0', tokens[tokenCounter + 2].at(1) - '0');
+                                        } else if (SymbolTable.find(tokens[tokenCounter + 2]) != SymbolTable.end()) {
+                                            loadInstruction(addrCounter, LDB, tokens[tokenCounter + 1].at(1) - '0', SymbolTable[tokens[tokenCounter + 2]]);
+                                        } else {
+                                            std::cout << "Command Line Error1. (line: " << lineCounter << ")\n";
+                                            return false;
+                                        }
+                                    } else {
+                                        std::cout << "Command Line Error. (line: " << lineCounter << ")\n";
+                                        return false;
+                                    }
+                                    break;
+                                case ADD:
+                                    if (tokenCounter + 2 < tokens.size() && isRegsterName(tokens[tokenCounter + 1]) && isRegsterName(tokens[tokenCounter + 2])) {
+                                        loadInstruction(addrCounter, ADD, tokens[tokenCounter + 1].at(1) - '0', tokens[tokenCounter + 2].at(1) - '0');
+                                    } else {
+                                        std::cout << "Command Line Error. (line: " << lineCounter << ")\n";
+                                        return false;
+                                    }
+                                    break;
+                                case ADI:
+                                    if (tokenCounter + 2 < tokens.size() && isRegsterName(tokens[tokenCounter + 1]) && isNumber(tokens[tokenCounter + 2])) {
+                                        loadInstruction(addrCounter, ADI, tokens[tokenCounter + 1].at(1) - '0', std::stoi(tokens[tokenCounter + 2]));
+                                    } else {
+                                        std::cout << "Command Line Error. (line: " << lineCounter << ")\n";
+                                        return false;
+                                    }
+                                    break;
+                                case SUB:
+                                    if (tokenCounter + 2 < tokens.size() && isRegsterName(tokens[tokenCounter + 1]) && isRegsterName(tokens[tokenCounter + 2])) {
+                                        loadInstruction(addrCounter, SUB, tokens[tokenCounter + 1].at(1) - '0', tokens[tokenCounter + 2].at(1) - '0');
+                                    } else {
+                                        std::cout << "Command Line Error. (line: " << lineCounter << ")\n";
+                                        return false;
+                                    }
+                                    break;
+                                case MUL:
+                                    if (tokenCounter + 2 < tokens.size() && isRegsterName(tokens[tokenCounter + 1]) && isRegsterName(tokens[tokenCounter + 2])) {
+                                        loadInstruction(addrCounter, MUL, tokens[tokenCounter + 1].at(1) - '0', tokens[tokenCounter + 2].at(1) - '0');
+                                    } else {
+                                        std::cout << "Command Line Error. (line: " << lineCounter << ")\n";
+                                        return false;
+                                    }
+                                    break;
+                                case DIV:
+                                    if (tokenCounter + 2 < tokens.size() && isRegsterName(tokens[tokenCounter + 1]) && isRegsterName(tokens[tokenCounter + 2])) {
+                                        loadInstruction(addrCounter, DIV, tokens[tokenCounter + 1].at(1) - '0', tokens[tokenCounter + 2].at(1) - '0');
+                                    } else {
+                                        std::cout << "Command Line Error. (line: " << lineCounter << ")\n";
+                                        return false;
+                                    }
+                                    break;
+                                case AND:
+                                    if (tokenCounter + 2 < tokens.size() && isRegsterName(tokens[tokenCounter + 1]) && isRegsterName(tokens[tokenCounter + 2])) {
+                                        loadInstruction(addrCounter, AND, tokens[tokenCounter + 1].at(1) - '0', tokens[tokenCounter + 2].at(1) - '0');
+                                    } else {
+                                        std::cout << "Command Line Error. (line: " << lineCounter << ")\n";
+                                        return false;
+                                    }
+                                    break;
+                                case OR:
+                                    if (tokenCounter + 2 < tokens.size() && isRegsterName(tokens[tokenCounter + 1]) && isRegsterName(tokens[tokenCounter + 2])) {
+                                        loadInstruction(addrCounter, OR, tokens[tokenCounter + 1].at(1) - '0', tokens[tokenCounter + 2].at(1) - '0');
+                                    } else {
+                                        std::cout << "Command Line Error. (line: " << lineCounter << ")\n";
+                                        return false;
+                                    }
+                                    break;
+                                case CMP:
+                                    if (tokenCounter + 2 < tokens.size() && isRegsterName(tokens[tokenCounter + 1]) && isRegsterName(tokens[tokenCounter + 2])) {
+                                        loadInstruction(addrCounter, CMP, tokens[tokenCounter + 1].at(1) - '0', tokens[tokenCounter + 2].at(1) - '0');
+                                    } else {
+                                        std::cout << "Command Line Error. (line: " << lineCounter << ")\n";
+                                        return false;
+                                    }
+                                    break;
+                                case TRP:
+                                    if (tokenCounter + 1 < tokens.size() && tokens[tokenCounter + 1].size() == 1 && tokens[tokenCounter + 1].at(0) <= '4' && tokens[tokenCounter + 1].at(0) >= '0') {
+                                        loadInstruction(addrCounter, TRP, tokens[tokenCounter + 1].at(0) - '0', 0);
+                                    } else {
+                                        std::cout << "Command Line Error. (line: " << lineCounter << ")\n";
+                                        return false;
+                                    }
+                                    break;
+                                case NOP:
+                                    loadInstruction(addrCounter, NOP, 0, 0);
+                                    break;
+                            }
+                            addrCounter += FIX_LENGTH;
+                        } else {
+                            // it is a directive
+                            if (tokenCounter + 1 < tokens.size()) {
+                                if (OpCodeTable[tokens[tokenCounter]] == _BYT) {  // handle character format like 'c'
+                                    if (tokens[tokenCounter + 1].size() == 3 && tokens[tokenCounter + 1].at(0) == '\'' && tokens[tokenCounter + 1].at(2) == '\'') {
+                                        setByte(addrCounter, tokens[tokenCounter + 1].at(1));
+                                    } else { // handle number format like 10
+                                        if (tokens[tokenCounter + 1].find_first_not_of("0123456789") == std::string::npos) {
+                                            setByte(addrCounter, static_cast<char>(std::stoi(tokens[tokenCounter + 1])));
+                                        } else {
+                                            std::cout << ".BYT data Format Error. (line: " << lineCounter << ")\n";
+                                            return false;
+                                        }
+                                    }
+                                } else {  // directive of .INT
+                                    if (isNumber(tokens[tokenCounter + 1])) {
+                                        setInt(addrCounter, std::stoi(tokens[tokenCounter + 1]));
+                                    } else {
+                                        std::cout << ".INT data Format Error. (line: " << lineCounter << ")\n";
                                         return false;
                                     }
                                 }
-                            } else {  // directive of .INT
-                                if (tokens[tokenCounter + 1].find_first_not_of("0123456789") == std::string::npos) {
-                                    setInt(addrCounter, std::stoi(tokens[tokenCounter + 1]));
-                                } else {
-                                    std::cout << ".INT data Format Error. (line: " << lineCounter << ")\n";
-                                    return false;
-                                }
+                            } else {
+                                std::cout << "Command Line too short. (line: " << lineCounter << ")\n";
+                                return false;
                             }
-                        } else {
-                            std::cout << "Command Line too short. (line: " << lineCounter << ")\n";
-                            return false;
+                            addrCounter += -OpCodeTable[tokens[tokenCounter]];
                         }
-                        addrCounter += -OpCodeTable[tokens[tokenCounter]];
                     }
                 }
             }
@@ -364,14 +515,60 @@ public:
                     PC = ip -> Oprand1;
                     break;
                 case JMR:
+                    if (ip->Oprand1 >= 0 && ip->Oprand1 <= REG_SIZE) {
+                        PC = REG[ip->Oprand1];
+                    } else {
+                        std::cout << "Unexpected Error!" << std::endl;
+                        return;
+                    }
                     break;
                 case BNZ:
+                    if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 <= MEM_SIZE - FIX_LENGTH) {
+                        if (REG[ip->Oprand1] != 0) {
+                            PC = ip->Oprand2;
+                        } else {
+                            PC += FIX_LENGTH;
+                        }
+                    } else {
+                        std::cout << "Unexpected Error!" << std::endl;
+                        return;
+                    }
                     break;
                 case BGT:
+                    if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 <= MEM_SIZE - FIX_LENGTH) {
+                        if (REG[ip->Oprand1] > 0) {
+                            PC = ip->Oprand2;
+                        } else {
+                            PC += FIX_LENGTH;
+                        }
+                    } else {
+                        std::cout << "Unexpected Error!" << std::endl;
+                        return;
+                    }
                     break;
                 case BLT:
+                    if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 <= MEM_SIZE - FIX_LENGTH) {
+                        if (REG[ip->Oprand1] < 0) {
+                            PC = ip->Oprand2;
+                        } else {
+                            PC += FIX_LENGTH;
+                        }
+                    } else {
+                        std::cout << "Unexpected Error!" << std::endl;
+                        return;
+                    }
                     break;
                 case BRZ:
+                    if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 <= MEM_SIZE - FIX_LENGTH) {
+                        if (REG[ip->Oprand1] == 0) {
+                            PC = ip->Oprand2;
+                        } else {
+                            PC += FIX_LENGTH;
+                        }
+                    } else {
+                        std::cout << "Unexpected Error!" << std::endl;
+                        return;
+                    }
                     break;
                 case MOV:
                     if (ip->Oprand1 >= 0 && ip->Oprand1 <= REG_SIZE && ip->Oprand2 >= 0 && ip->Oprand2 < REG_SIZE) {
@@ -383,11 +580,26 @@ public:
                     PC += FIX_LENGTH;
                     break;
                 case LDA:
+                    if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 <= MEM_SIZE - INT_SIZE) {
+                        REG[ip->Oprand1] = ip->Oprand2;
+                    } else {
+                        std::cout << "Unexpected Error!" << std::endl;
+                        return;
+                    }
+                    PC += FIX_LENGTH;
                     break;
                 case STR:
+                    if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 <= MEM_SIZE - INT_SIZE) {
+                        int *p = reinterpret_cast<int *>(&MEM[ip->Oprand2]);
+                        *p = REG[ip->Oprand1];
+                    } else {
+                        std::cout << "Unexpected Error!" << std::endl;
+                        return;
+                    }
+                    PC += FIX_LENGTH;
                     break;
                 case LDR:
-                    if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 < MEM_SIZE) {
+                    if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 <= MEM_SIZE - INT_SIZE) {
                         int *p = reinterpret_cast<int *>(&MEM[ip->Oprand2]);
                         REG[ip->Oprand1] = *p;
                     } else {
@@ -397,6 +609,13 @@ public:
                     PC += FIX_LENGTH;
                     break;
                 case STB:
+                    if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 < MEM_SIZE) {
+                        MEM[ip->Oprand2] = static_cast<char>(REG[ip->Oprand1]);
+                    } else {
+                        std::cout << "Unexpected Error!" << std::endl;
+                        return;
+                    }
+                    PC += FIX_LENGTH;
                     break;
                 case LDB:
                     if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 < MEM_SIZE) {
@@ -418,6 +637,13 @@ public:
                     PC += FIX_LENGTH;
                     break;
                 case ADI:
+                    if (ip->Oprand1 >= 0 && ip->Oprand1 <= REG_SIZE && ip->Oprand2) {
+                        REG[ip->Oprand1] += ip->Oprand2;
+                    } else {
+                        std::cout << "Unexpected Error!" << std::endl;
+                        return;
+                    }
+                    PC += FIX_LENGTH;
                     break;
                 case SUB:
                     if (ip->Oprand1 >= 0 && ip->Oprand1 <= REG_SIZE && ip->Oprand2 >= 0 && ip->Oprand2 < REG_SIZE) {
@@ -447,10 +673,39 @@ public:
                     PC += FIX_LENGTH;
                     break;
                 case AND:
+                    if (ip->Oprand1 >= 0 && ip->Oprand1 <= REG_SIZE && ip->Oprand2 >= 0 && ip->Oprand2 < REG_SIZE) {
+                        if (REG[ip->Oprand1] == 0 || REG[ip->Oprand2] == 0) {
+                            REG[ip->Oprand1] = 0;
+                        } else {
+                            REG[ip->Oprand1] = 1;
+                        }
+                    } else {
+                        std::cout << "Unexpected Error!" << std::endl;
+                        return;
+                    }
+                    PC += FIX_LENGTH;
                     break;
                 case OR:
+                    if (ip->Oprand1 >= 0 && ip->Oprand1 <= REG_SIZE && ip->Oprand2 >= 0 && ip->Oprand2 < REG_SIZE) {
+                        if (REG[ip->Oprand1] == 0 && REG[ip->Oprand2] == 0) {
+                            REG[ip->Oprand1] = 0;
+                        } else {
+                            REG[ip->Oprand1] = 1;
+                        }
+                    } else {
+                        std::cout << "Unexpected Error!" << std::endl;
+                        return;
+                    }
+                    PC += FIX_LENGTH;
                     break;
                 case CMP:
+                    if (ip->Oprand1 >= 0 && ip->Oprand1 <= REG_SIZE && ip->Oprand2 >= 0 && ip->Oprand2 < REG_SIZE) {
+                        REG[ip->Oprand1] -= REG[ip->Oprand2];
+                    } else {
+                        std::cout << "Unexpected Error!" << std::endl;
+                        return;
+                    }
+                    PC += FIX_LENGTH;
                     break;
                 case TRP:
                     switch (ip -> Oprand1) {
@@ -460,16 +715,69 @@ public:
                         case 1:
                             std::cout << REG[3];
                             break;
+                        case 2:
+                            std::cin >> REG[3];
+                            break;
                         case 3:
                             std::cout << static_cast<char>(REG[3]);
+                            break;
+                        case 4:
+                            char tempChar;
+                            std::cin >> tempChar;
+                            REG[3] = 0; // clear the register
+                            REG[3] = static_cast<int>(tempChar);
                             break;
                         default:
                             std::cout << "Unexpected Error!" << std::endl;
                             return;
-                            break;
                     }
                     PC += FIX_LENGTH;
                     break;
+                case STRI:
+                    if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 <= MEM_SIZE - INT_SIZE) {
+                        int *p = reinterpret_cast<int *>(&MEM[REG[ip->Oprand2]]);
+                        *p = REG[ip->Oprand1];
+                    } else {
+                        std::cout << "Unexpected Error!" << std::endl;
+                        return;
+                    }
+                    PC += FIX_LENGTH;
+                    break;
+                case LDRI:
+                    if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 <= MEM_SIZE - INT_SIZE) {
+                        int *p = reinterpret_cast<int *>(&MEM[REG[ip->Oprand2]]);
+                        REG[ip->Oprand1] = *p;
+                    } else {
+                        std::cout << "Unexpected Error!" << std::endl;
+                        return;
+                    }
+                    PC += FIX_LENGTH;
+                    break;
+                case STBI:
+                    if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 < MEM_SIZE) {
+                        MEM[REG[ip->Oprand2]] = static_cast<char>(REG[ip->Oprand1]);
+                    } else {
+                        std::cout << "Unexpected Error!" << std::endl;
+                        return;
+                    }
+                    PC += FIX_LENGTH;
+                    break;
+                case LDBI:
+                    if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 < MEM_SIZE) {
+                        REG[ip->Oprand1] = 0; // clear the register
+                        REG[ip->Oprand1] = static_cast<int>(MEM[REG[ip->Oprand2]]);
+                    } else {
+                        std::cout << "Unexpected Error!" << std::endl;
+                        return;
+                    }
+                    PC += FIX_LENGTH;
+                    break;
+                case NOP:
+                    PC += FIX_LENGTH;
+                    break;
+                default:
+                    std::cout << "Unexpected OpCode Error!" << std::endl;
+                    return;
             }
         }
     }
