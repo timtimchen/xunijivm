@@ -16,24 +16,180 @@ ARR		.INT	10
 		.INT	10
 i		.INT	0
 sum		.INT	0
-temp	.INT	0
+two		.INT	2
 result	.INT	0		
 		
 INTSIZE	.INT	4
-comma	.BYT	','
+hyphen	.BYT	'-'
 newline	.BYT	10
 space	.BYT	32
+
+DAGS	.BYT	'D'
+		.BYT	'A'
+		.BYT	'G'
+		.BYT	'S'
+GADS	.INT	-99
+EQUAL	.BYT	'='
+GT		.BYT	'>'
+LT		.BYT	'<'
+
+str1	.BYT	32				;" is even\n"
+		.BYT	'i'
+		.BYT	's'
+		.BYT	32
+		.BYT	'e'
+		.BYT	'v'
+		.BYT	'e'
+		.BYT	'n'
+		.BYT	10
+strl1	.INT	9
+
+str2	.BYT	32				;" is odd\n"
+		.BYT	'i'
+		.BYT	's'
+		.BYT	32
+		.BYT	'o'
+		.BYT	'd'
+		.BYT	'd'
+		.BYT	10
+strl2	.INT	8
+
+str3	.BYT	'S'				;"Sum is "
+		.BYT	'u'
+		.BYT	'm'
+		.BYT	32
+		.BYT	'i'
+		.BYT	's'
+		.BYT	32
+strl3	.INT	8
 
 START
 		LDR		R7, SIZE		;get size
 		LDR		R6, i			;get i
-WHILE1	MOV		R5, R6
+		LDR		R0, sum
+while1	MOV		R5, R6
 		CMP		R5, R7
-		BRZ		R5, WEND1		;if i == size, end loop
-		MOV		R4, R6
+		BRZ		R5, wend1		;if i == size, end loop
 		LDR		R3, INTSIZE
+		MUL		R3, R6
+		LDA		R4, ARR
+		ADD		R4, R3
+		LDR		R3, R4			;get arr[i]
+		ADD		R0, R3			;sum += ARR[i]
+		LDR		R2, two
+		MOV		R1, R3
+		DIV		R1, R2
+		MUL		R1, R2
+if1		CMP		R1, R3			;compare result is arr[i] % 2 == 0
+		BNZ		R1, else1
+		TRP		1				;print out arr[i]
+		LDR		R4, strl1		;print out string1
+		LDA		R5, str1
+print1	BRZ		R4, pend1
+		LDB		R3, R5
+		TRP		3
+		ADI		R5, 1
+		ADI		R4, -1
+		JMP		print1
+pend1	
+		JMP		endif1
+else1	
+		TRP		1				;print out arr[i]
+		LDR		R4, strl2		;print out string2
+		LDA		R5, str2
+print2	BRZ		R4, pend2
+		LDB		R3, R5
+		TRP		3
+		ADI		R5, 1
+		ADI		R4, -1
+		JMP		print2
+pend2	
+endif1
 		ADI		R6, 1			;i++
-		JMP		WHILE1
-WEND1
+		JMP		while1
+wend1
+		LDR		R4, strl3		;print out string3
+		LDA		R5, str3
+print3	BRZ		R4, pend3
+		LDB		R3, R5
+		TRP		3
+		ADI		R5, 1
+		ADI		R4, -1
+		JMP		print3
+pend3	
+		MOV		R3, R0
+		TRP		1
+		LDB		R3, newline
+		TRP		3
+		TRP		3
+
+swap	LDA		R0, GADS		;r0 point to G position
+		MOV		R1, R0
+		ADI		R1, 2			;r1 point to D position
+		LDB		R2, R0
+		LDB		R3, R1
+		STB		R2, R1
+		STB		R3, R0
+		SUB		R7, R7			;set r7 = 0
+		ADI		R7, 4			;set r7 = 4
+		LDR		R6, i			;set r6 = i = 0
+while2	MOV		R5, R6
+		CMP		R5, R7
+		BRZ		R5, wend2
+		LDA		R4, DAGS
+		ADD		R4, R6
+		LDB		R1, R4			;r1 = dags[i]
+		LDA		R4, GADS
+		ADD		R4, R6
+		LDB		R2, R4			;r2 = gads[i]
+		MOV		R0, R1
+		CMP		R0, R2			;compare dags[i] and gads [i]
+		BNZ		R0, br2
+br1		LDB		R4, EQUAL
+br2		BGT		R0, br3
+		LDB		R4, LT
+br3		LDB		R4, GT			;setting the compare result character
+		MOV		R3, R1			;print the compare result
+		TRP		3
+		LDB		R3, space
+		TRP		3
+		MOV		R3, R4
+		TRP		3
+		LDB		R3, space
+		TRP		3
+		MOV		R3, R2
+		TRP		3
+		LDB		R3, hyphen
+		TRP		3
+		TRP		3
+		LDB		R3, newline
+		TRP		3
+		ADI		R6, 1			;i++
+		JMP		while2		
+wend2
+		LDR		R3, DAGS
+		TRP		1
+		MOV		R1, R3			;r1 = dags_value
+		LDB		R3, space
+		TRP		3
+		LDB		R3, hyphen
+		TRP		3
+		LDB		R3, space
+		TRP		3
+		LDR		R3, GADS
+		TRP		1
+		MOV		R2, R3			;r2 = gads_value
+		LDB		R3, space
+		TRP		3
+		LDB		R3, EQUAL
+		TRP		3
+		LDB		R3, space
+		TRP		3
+		SUB		R1, R2
+		MOV		R3, R1
+		TRP		1
+		LDB		R3, newline
+		TRP		3
+		TRP		3
 
 END		TRP		0
