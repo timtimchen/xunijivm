@@ -3,6 +3,8 @@
 ; by Jinghong Chen
 ; ############################
 
+;Data of the project
+
 SIZE	.INT	10
 ARR		.INT	10
 		.INT	2
@@ -62,6 +64,8 @@ str3	.BYT	'S'				;"Sum is "
 		.BYT	's'
 		.BYT	32
 strl3	.INT	8
+
+;Part I of the project
 
 START
 		LDR		R7, SIZE		;get size
@@ -123,6 +127,10 @@ pend3
 		TRP		3
 		TRP		3
 
+;Part II of the project
+
+		LDR		R1, DAGS		;copy the dags_value as integer to gads
+		STR		R1, GADS
 swap	LDA		R0, GADS		;r0 point to G position
 		MOV		R1, R0
 		ADI		R1, 2			;r1 point to D position
@@ -135,7 +143,7 @@ swap	LDA		R0, GADS		;r0 point to G position
 		LDR		R6, i			;set r6 = i = 0
 while2	MOV		R5, R6
 		CMP		R5, R7
-		BRZ		R5, wend2
+		BRZ		R5, wend2		;check the iterations, run 4 times and end
 		LDA		R4, DAGS
 		ADD		R4, R6
 		LDB		R1, R4			;r1 = dags[i]
@@ -143,12 +151,15 @@ while2	MOV		R5, R6
 		ADD		R4, R6
 		LDB		R2, R4			;r2 = gads[i]
 		MOV		R0, R1
-		CMP		R0, R2			;compare dags[i] and gads [i]
+if2		CMP		R0, R2			;compare dags[i] and gads [i]
 		BNZ		R0, br2
 br1		LDB		R4, EQUAL
+		JMP		endif2
 br2		BGT		R0, br3
 		LDB		R4, LT
+		JMP		endif2
 br3		LDB		R4, GT			;setting the compare result character
+endif2
 		MOV		R3, R1			;print the compare result
 		TRP		3
 		LDB		R3, space
@@ -162,11 +173,12 @@ br3		LDB		R4, GT			;setting the compare result character
 		LDB		R3, hyphen
 		TRP		3
 		TRP		3
-		LDB		R3, newline
-		TRP		3
 		ADI		R6, 1			;i++
 		JMP		while2		
 wend2
+		LDB		R3, newline
+		TRP		3
+		TRP		3
 		LDR		R3, DAGS
 		TRP		1
 		MOV		R1, R3			;r1 = dags_value
