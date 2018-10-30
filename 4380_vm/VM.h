@@ -17,7 +17,7 @@
 #include <iterator>
 
 #define REG_SIZE 13  // total general regesters
-#define MEM_SIZE 10000  // total bytes of memory
+#define MEM_SIZE 100000  // total bytes of memory
 #define FIX_LENGTH 12  // fixed length of an instrution
 #define INT_SIZE 4  // size of an integer
 #define JMP 1
@@ -589,24 +589,25 @@ public:
                     }
                     break;
                 case MOV:
+                    REG[8] += FIX_LENGTH;
                     if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 >= 0 && ip->Oprand2 < REG_SIZE) {
                         REG[ip->Oprand1] = REG[ip->Oprand2];
                     } else {
                         std::cout << "Unexpected Error!" << std::endl;
                         return;
                     }
-                    REG[8] += FIX_LENGTH;
                     break;
                 case LDA:
-                    if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 <= MEM_SIZE - INT_SIZE) {
+                    REG[8] += FIX_LENGTH;
+                   if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 <= MEM_SIZE - INT_SIZE) {
                         REG[ip->Oprand1] = ip->Oprand2;
                     } else {
                         std::cout << "Unexpected Error!" << std::endl;
                         return;
                     }
-                    REG[8] += FIX_LENGTH;
-                    break;
+                     break;
                 case STR:
+                    REG[8] += FIX_LENGTH;
                     if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 <= MEM_SIZE - INT_SIZE) {
                         int *p = reinterpret_cast<int *>(&MEM[ip->Oprand2]);
                         *p = REG[ip->Oprand1];
@@ -614,28 +615,28 @@ public:
                         std::cout << "Unexpected Error!" << std::endl;
                         return;
                     }
-                    REG[8] += FIX_LENGTH;
                     break;
                 case LDR:
-                    if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 <= MEM_SIZE - INT_SIZE) {
+                    REG[8] += FIX_LENGTH;
+                   if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 <= MEM_SIZE - INT_SIZE) {
                         int *p = reinterpret_cast<int *>(&MEM[ip->Oprand2]);
                         REG[ip->Oprand1] = *p;
                     } else {
                         std::cout << "Unexpected Error!" << std::endl;
                         return;
                     }
-                    REG[8] += FIX_LENGTH;
                     break;
                 case STB:
+                    REG[8] += FIX_LENGTH;
                     if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 < MEM_SIZE) {
                         MEM[ip->Oprand2] = static_cast<char>(REG[ip->Oprand1]);
                     } else {
                         std::cout << "Unexpected Error!" << std::endl;
                         return;
                     }
-                    REG[8] += FIX_LENGTH;
                     break;
                 case LDB:
+                    REG[8] += FIX_LENGTH;
                     if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 < MEM_SIZE) {
                         REG[ip->Oprand1] = 0; // clear the register
                         REG[ip->Oprand1] = static_cast<int>(MEM[ip->Oprand2]);
@@ -643,54 +644,54 @@ public:
                         std::cout << "Unexpected Error!" << std::endl;
                         return;
                     }
-                    REG[8] += FIX_LENGTH;
                     break;
                 case ADD:
-                    if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 >= 0 && ip->Oprand2 < REG_SIZE) {
+                    REG[8] += FIX_LENGTH;
+                   if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 >= 0 && ip->Oprand2 < REG_SIZE) {
                         REG[ip->Oprand1] += REG[ip->Oprand2];
                     } else {
                         std::cout << "Unexpected Error!" << std::endl;
                         return;
                     }
-                    REG[8] += FIX_LENGTH;
                     break;
                 case ADI:
+                    REG[8] += FIX_LENGTH;
                     if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2) {
                         REG[ip->Oprand1] += ip->Oprand2;
                     } else {
                         std::cout << "Unexpected Error!" << std::endl;
                         return;
                     }
-                    REG[8] += FIX_LENGTH;
                     break;
                 case SUB:
+                    REG[8] += FIX_LENGTH;
                     if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 >= 0 && ip->Oprand2 < REG_SIZE) {
                         REG[ip->Oprand1] -= REG[ip->Oprand2];
                     } else {
                         std::cout << "Unexpected Error!" << std::endl;
                         return;
                     }
-                    REG[8] += FIX_LENGTH;
                     break;
                 case MUL:
+                    REG[8] += FIX_LENGTH;
                     if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 >= 0 && ip->Oprand2 < REG_SIZE) {
                         REG[ip->Oprand1] *= REG[ip->Oprand2];
                     } else {
                         std::cout << "Unexpected Error!" << std::endl;
                         return;
                     }
-                    REG[8] += FIX_LENGTH;
                     break;
                 case DIV:
+                    REG[8] += FIX_LENGTH;
                     if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 >= 0 && ip->Oprand2 < REG_SIZE) {
                         REG[ip->Oprand1] /= REG[ip->Oprand2];
                     } else {
                         std::cout << "Unexpected Error!" << std::endl;
                         return;
                     }
-                    REG[8] += FIX_LENGTH;
                     break;
                 case AND:
+                    REG[8] += FIX_LENGTH;
                     if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 >= 0 && ip->Oprand2 < REG_SIZE) {
                         if (REG[ip->Oprand1] == 0 || REG[ip->Oprand2] == 0) {
                             REG[ip->Oprand1] = 0;
@@ -701,9 +702,9 @@ public:
                         std::cout << "Unexpected Error!" << std::endl;
                         return;
                     }
-                    REG[8] += FIX_LENGTH;
                     break;
                 case OR:
+                    REG[8] += FIX_LENGTH;
                     if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 >= 0 && ip->Oprand2 < REG_SIZE) {
                         if (REG[ip->Oprand1] == 0 && REG[ip->Oprand2] == 0) {
                             REG[ip->Oprand1] = 0;
@@ -714,18 +715,18 @@ public:
                         std::cout << "Unexpected Error!" << std::endl;
                         return;
                     }
-                    REG[8] += FIX_LENGTH;
                     break;
                 case CMP:
+                    REG[8] += FIX_LENGTH;
                     if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 >= 0 && ip->Oprand2 < REG_SIZE) {
                         REG[ip->Oprand1] -= REG[ip->Oprand2];
                     } else {
                         std::cout << "Unexpected Error!" << std::endl;
                         return;
                     }
-                    REG[8] += FIX_LENGTH;
                     break;
                 case TRP:
+                    REG[8] += FIX_LENGTH;
                     switch (ip -> Oprand1) {
                         case 0:
                             programStop = true;
@@ -746,9 +747,9 @@ public:
                             std::cout << "Unexpected Error!" << std::endl;
                             return;
                     }
-                    REG[8] += FIX_LENGTH;
                     break;
                 case STRI:
+                    REG[8] += FIX_LENGTH;
                     if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 <= MEM_SIZE - INT_SIZE) {
                         int *p = reinterpret_cast<int *>(&MEM[REG[ip->Oprand2]]);
                         *p = REG[ip->Oprand1];
@@ -756,9 +757,9 @@ public:
                         std::cout << "Unexpected Error!" << std::endl;
                         return;
                     }
-                    REG[8] += FIX_LENGTH;
                     break;
                 case LDRI:
+                    REG[8] += FIX_LENGTH;
                     if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 <= MEM_SIZE - INT_SIZE) {
                         int *p = reinterpret_cast<int *>(&MEM[REG[ip->Oprand2]]);
                         REG[ip->Oprand1] = *p;
@@ -766,18 +767,18 @@ public:
                         std::cout << "Unexpected Error!" << std::endl;
                         return;
                     }
-                    REG[8] += FIX_LENGTH;
                     break;
                 case STBI:
+                    REG[8] += FIX_LENGTH;
                     if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 < MEM_SIZE) {
                         MEM[REG[ip->Oprand2]] = static_cast<char>(REG[ip->Oprand1]);
                     } else {
                         std::cout << "Unexpected Error!" << std::endl;
                         return;
                     }
-                    REG[8] += FIX_LENGTH;
                     break;
                 case LDBI:
+                    REG[8] += FIX_LENGTH;
                     if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 < MEM_SIZE) {
                         REG[ip->Oprand1] = 0; // clear the register
                         REG[ip->Oprand1] = static_cast<int>(MEM[REG[ip->Oprand2]]);
@@ -785,7 +786,6 @@ public:
                         std::cout << "Unexpected Error!" << std::endl;
                         return;
                     }
-                    REG[8] += FIX_LENGTH;
                     break;
                 case NOP:
                     REG[8] += FIX_LENGTH;
