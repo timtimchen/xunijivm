@@ -1,0 +1,31 @@
+; ############################
+; SC 4380 Project 3
+; by Jinghong Chen
+; ############################
+
+;Data of the project
+
+QUIT	.BYT	'@'
+newline	.BYT	10
+space	.BYT	32
+
+
+;Code of the project
+
+START
+		LDB		R0, QUIT
+LOOP	TRP		4
+		MOV		R2, R3
+		CMP		R3, R0
+		BRZ		R3, END
+		MOV		R3, R2
+		TRP		3
+		LDB		R3, newline
+		TRP		3
+		MOV		R3, R2
+		TRP		1
+		LDB		R3, newline
+		TRP		3
+		JMP		LOOP
+		
+END		TRP		0

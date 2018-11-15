@@ -17,7 +17,7 @@
 #include <iterator>
 
 #define REG_SIZE 13  // total general regesters
-#define MEM_SIZE 100000  // total bytes of memory
+#define MEM_SIZE 60000  // total bytes of memory
 #define FIX_LENGTH 12  // fixed length of an instrution
 #define INT_SIZE 4  // size of an integer
 #define JMP 1
@@ -60,12 +60,14 @@ private:
     // VM register, 0 - 7: general Rigsiter, 8: PC, 9: SL, 10: SP, 11: FP, 12: SB
     int REG[REG_SIZE];  // VM registers
     char MEM[MEM_SIZE];  // VM memory
+    int memoryUsedCount;
     std::map<std::string, int> OpCodeTable;  // Operator Codes map (including Directives
     std::map<std::string, int> SymbolTable;  // Operator Codes map (including Directives
 
 public:
     VM() {
         REG[8] = 0;
+        memoryUsedCount = 0;
         
         OpCodeTable.insert(std::pair<std::string, int>("JMP", JMP));
         OpCodeTable.insert(std::pair<std::string, int>("JMR", JMR));
@@ -511,7 +513,8 @@ public:
                     }
                 }
             }
-            // pass first checking step
+            // pass second checking step
+            memoryUsedCount = addrCounter; // store total bytes used by all codes and data
             return true;
         } else {
             std::cout << "Cannot open the file: " << fileName << std::endl;
@@ -521,7 +524,11 @@ public:
     
     void run() {
         bool programStop = false;
-        REG[8] = 0; // start from MEM[0]
+        REG[8] = 0; // setting the PC register, start from MEM[0]
+        REG[9] = memoryUsedCount; // setting the SL register nextll.;ju,,;.l,.l,m to the last used byte
+        REG[12] = MEM_SIZE - 4; // setting the SB register to the last slot of Memory
+        REG[10] = REG[12]; // setting the SP register
+        REG[11] = REG[10]; // setting the FP register, first pointing to out of memory
         while (!programStop && REG[8] < MEM_SIZE) {
             Instruction * ip = fetchInstruction(REG[8]);
             if (ip == nullptr) {
