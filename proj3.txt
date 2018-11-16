@@ -5,27 +5,222 @@
 
 ;Data of the project
 
-QUIT	.BYT	'@'
+SIZE	.INT	7
+cnt		.INT	-1
+tenth	.INT	-1
+c		.BYT	'1'
+		.BYT	'2'
+		.BYT	'3'
+		.BYT	'4'
+		.BYT	'5'
+		.BYT	'6'
+		.BYT	'7'
+data	.INT	-1
+flag	.INT	-1
+opdv	.INT	-1
+
 newline	.BYT	10
 space	.BYT	32
+Qsign	.BYT	'@'
+Psign	.BYT	'+'
+Nsign	.BYT	'-'
 
+str1	.BYT	'N'
+		.BYT	'u'
+		.BYT	'm'
+		.BYT	'b'
+		.BYT	'e'
+		.BYT	'r'
+		.BYT	32
+		.BYT	't'
+		.BYT	'o'
+		.BYT	'o'
+		.BYT	32
+		.BYT	'B'
+		.BYT	'i'
+		.BYT	'g'
+		.BYT	10
+strl1	.INT	15
+
+OverF	.INT	-999999
+UnderF	.INT	-111111
 
 ;Code of the project
 
 START
-		LDB		R0, QUIT
-LOOP	TRP		4
-		MOV		R2, R3
-		CMP		R3, R0
-		BRZ		R3, END
-		MOV		R3, R2
-		TRP		3
+; ready to call reset(a,b,c,d), test overflow
+		MOV		R5, SP
+		ADI		R5, -24			;Adjust for space needed
+		CMP		R5, SL
+		BLT		R5, OVERFLOW
+; Create Activation Record and invoke reset(a,b,c,d)
+		MOV		R3, FP			;save FP in R3
+		MOV		FP, SP			;FP = SP
+		ADI		SP, -4			;Adjust Stack Pointer for Return Address
+		STR		R3, SP			;PFP = FP
+		ADI		SP, -4			;Adjust Stack Pointer for PFP
+		SUB		R5, R5
+		ADI		R5, 1			;set a = 1
+		STR		R5, SP			;pass a as parameter
+		ADI		SP, -4			;Adjust Stack Pointer for a
+		SUB		R5, R5
+		STR		R5, SP			;pass b = 0
+		ADI		SP, -4			;Adjust Stack Pointer for b
+		STR		R5, SP			;pass c = 0
+		ADI		SP, -4			;Adjust Stack Pointer for c
+		STR		R5, SP			;pass d = 0
+		ADI		SP, -4			;Adjust Stack Pointer for d
+		MOV		R1, PC
+		ADI		R1, 36			;3 * FixLength = 36
+		STR		R1, FP
+		JMP		reset
+
+; ready to call getdata(), test overflow
+		MOV		R5, SP
+		ADI		R5, -8			;Adjust for space needed
+		CMP		R5, SL
+		BLT		R5, OVERFLOW
+; Create Activation Record and invoke getdata()
+		MOV		R3, FP			;save FP in R3
+		MOV		FP, SP			;FP = SP
+		ADI		SP, -4			;Adjust Stack Pointer for Return Address
+		STR		R3, SP			;PFP = FP
+		ADI		SP, -4			;Adjust Stack Pointer for PFP
+		MOV		R1, PC
+		ADI		R1, 36			;3 * FixLength = 36
+		STR		R1, FP
+		JMP		getdata
+While1	LDB		R0, Qsign
+		LDB		R1, c
+		CMP		R0, R1			;compare c[0] and '@'
+		BRZ		R0, END			;if a quit sign is received, quit the program
+; ready to call reset(a,b,c,d), test overflow
+		MOV		R5, SP
+		ADI		R5, -24			;Adjust for space needed
+		CMP		R5, SL
+		BLT		R5, OVERFLOW
+; Create Activation Record and invoke reset(a,b,c,d)
+		MOV		R3, FP			;save FP in R3
+		MOV		FP, SP			;FP = SP
+		ADI		SP, -4			;Adjust Stack Pointer for Return Address
+		STR		R3, SP			;PFP = FP
+		ADI		SP, -4			;Adjust Stack Pointer for PFP
+		SUB		R5, R5
+		ADI		R5, 1			;set a = 1
+		STR		R5, SP			;pass a as parameter
+		ADI		SP, -4			;Adjust Stack Pointer for a
+		SUB		R5, R5
+		STR		R5, SP			;pass b = 0
+		ADI		SP, -4			;Adjust Stack Pointer for b
+		STR		R5, SP			;pass c = 0
+		ADI		SP, -4			;Adjust Stack Pointer for c
+		STR		R5, SP			;pass d = 0
+		ADI		SP, -4			;Adjust Stack Pointer for d
+		MOV		R1, PC
+		ADI		R1, 36			;3 * FixLength = 36
+		STR		R1, FP
+		JMP		reset
+
+; ready to call getdata(), test overflow
+		MOV		R5, SP
+		ADI		R5, -8			;Adjust for space needed
+		CMP		R5, SL
+		BLT		R5, OVERFLOW
+; Create Activation Record and invoke getdata()
+		MOV		R3, FP			;save FP in R3
+		MOV		FP, SP			;FP = SP
+		ADI		SP, -4			;Adjust Stack Pointer for Return Address
+		STR		R3, SP			;PFP = FP
+		ADI		SP, -4			;Adjust Stack Pointer for PFP
+		MOV		R1, PC
+		ADI		R1, 36			;3 * FixLength = 36
+		STR		R1, FP
+		JMP		getdata
+		JMP		While1
+END		TRP		0
+
+OVERFLOW
 		LDB		R3, newline
 		TRP		3
-		MOV		R3, R2
+		LDR		R3, OverF
 		TRP		1
 		LDB		R3, newline
 		TRP		3
-		JMP		LOOP
-		
-END		TRP		0
+		TRP		0
+UNDERFLOW
+		LDB		R3, newline
+		TRP		3
+		LDR		R3, UnderF
+		TRP		1
+		LDB		R3, newline
+		TRP		3
+		TRP		0
+
+reset	SUB		R6, R6			;set 0 to R6
+		LDR		R4, SIZE
+		LDA		R5, c
+loop1	BRZ		R4, lend1		;clear array c[size]
+		STB		R6, R5
+		ADI		R5, 1
+		ADI		R4, -1
+		JMP		loop1
+lend1
+		MOV		R7, FP
+		ADI		R7, -8
+		LDR		R0, R7			;read parameter a
+		STR		R0, data
+		ADI		R7, -4
+		LDR		R0, R7			;read parameter b
+		STR		R0, opdv
+		ADI		R7, -4
+		LDR		R0, R7			;read parameter c
+		STR		R0, cnt
+		ADI		R7, -4
+		LDR		R0, R7			;read parameter d
+		STR		R0, flag
+; get ready to return
+RTN1	MOV		SP, FP			;De-allocate (SP = FP)
+		MOV		R5, FP
+		CMP 	R5, SB			;Test for Underflow (SP > SB)
+		BGT		R5, UNDERFLOW
+; Set Previous Frame to Current Frame and Return
+		LDR		R5, FP			;Return Address Pointed to by FP
+		MOV		R6, FP
+		ADI		R6, -4			;get PFP
+		LDR		FP, R6			;FP = PFP
+		JMR		R5				;Jump to Address in Register R5
+
+getdata	LDR		R0, cnt
+		LDR		R1, SIZE
+if1		CMP		R1, R0			;compare SIZE and cnt
+		BGT		R1, else1
+		LDR		R4, strl1		;print out string1
+		LDA		R5, str1
+print1	BRZ		R4, pend1
+		LDB		R3, R5
+		TRP		3
+		ADI		R5, 1
+		ADI		R4, -1
+		JMP		print1
+pend1	
+; get ready to call flush()				
+		JMP		RTN2
+else1	LDA		R1, c
+		LDR		R3, cnt
+		ADD		R1, R3			;pointer to c[cnt]
+		TRP		4				;invoke getchar()
+		STB		R3, R1			;c[cnt] = getchar()
+		ADI		R0, 1
+		STR		R0, cnt			;cnt++
+; get ready to return
+RTN2	MOV		SP, FP			;De-allocate (SP = FP)
+		MOV		R5, FP
+		CMP 	R5, SB			;Test for Underflow (SP > SB)
+		BGT		R5, UNDERFLOW
+; Set Previous Frame to Current Frame and Return
+		LDR		R5, FP			;Return Address Pointed to by FP
+		MOV		R6, FP
+		ADI		R6, -4			;get PFP
+		LDR		FP, R6			;FP = PFP
+		JMR		R5				;Jump to Address in Register R5
+
