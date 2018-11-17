@@ -24,6 +24,16 @@ space	.BYT	32
 Qsign	.BYT	'@'
 Psign	.BYT	'+'
 Nsign	.BYT	'-'
+Digit0	.BYT	'0'
+Digit1	.BYT	'1'
+Digit2	.BYT	'2'
+Digit3	.BYT	'3'
+Digit4	.BYT	'4'
+Digit5	.BYT	'5'
+Digit6	.BYT	'6'
+Digit7	.BYT	'7'
+Digit8	.BYT	'8'
+Digit9	.BYT	'9'
 
 str1	.BYT	'N'
 		.BYT	'u'
@@ -41,6 +51,38 @@ str1	.BYT	'N'
 		.BYT	'g'
 		.BYT	10
 strl1	.INT	15
+
+str2	.BYT	32
+		.BYT	'i'
+		.BYT	's'
+		.BYT	32
+		.BYT	'n'
+		.BYT	'o'
+		.BYT	't'
+		.BYT	32
+		.BYT	'a'
+		.BYT	32
+		.BYT	'n'
+		.BYT	'u'
+		.BYT	'm'
+		.BYT	'b'
+		.BYT	'e'
+		.BYT	'r'
+		.BYT	10
+strl2	.INT	17
+
+str3	.BYT	'O'
+		.BYT	'p'
+		.BYT	'e'
+		.BYT	'r'
+		.BYT	'a'
+		.BYT	'n'
+		.BYT	'd'
+		.BYT	32
+		.BYT	'i'
+		.BYT	's'
+		.BYT	32
+strl3	.INT	11
 
 OverF	.INT	-999999
 UnderF	.INT	-111111
@@ -94,7 +136,40 @@ While1	LDB		R0, Qsign
 		LDB		R1, c
 		CMP		R0, R1			;compare c[0] and '@'
 		BRZ		R0, END			;if a quit sign is received, quit the program
-While2	LDB		R0, data
+if3		LDB		R0, Psign
+		CMP		R0, R1			;compare c[0] and '+'
+		BRZ		R0, else3
+		LDB		R0, Nsign
+		CMP		R0, R1			;compare c[0] and '-'
+		BRZ		R0, else3
+		LDA		R4, c			;pointer to c[0]
+		LDB		R5, R4
+		LDB		R6, Psign
+		STB		R6, R4			;set c[0] = '+'
+		ADI		R4, 1			;pointer to c[1]
+		STB		R5, R4			;set c[1] = c[0]
+		LDR		R6, cnt
+		ADI		R6, 1
+		STR		R6, cnt			;cnt++
+		JMP		endif3
+else3
+; ready to call getdata(), test overflow
+		MOV		R5, SP
+		ADI		R5, -8			;Adjust for space needed
+		CMP		R5, SL
+		BLT		R5, OVERFLOW
+; Create Activation Record and invoke getdata()
+		MOV		R3, FP			;save FP in R3
+		MOV		FP, SP			;FP = SP
+		ADI		SP, -4			;Adjust Stack Pointer for Return Address
+		STR		R3, SP			;PFP = FP
+		ADI		SP, -4			;Adjust Stack Pointer for PFP
+		MOV		R1, PC
+		ADI		R1, 36			;3 * FixLength = 36
+		STR		R1, FP
+		JMP		getdata
+endif3		
+While2	LDR		R0, data
 		BRZ		R0, Wend2
 if2		LDA		R1, c
 		LDR		R0, cnt
@@ -106,16 +181,68 @@ if2		LDA		R1, c
 		BNZ		R2, else2
 		SUB		R6, R6
 		STR		R6, data		;set data = 0
+		ADI		R6, 1
+		STR		R6, tenth		;set tenth = 1
+		LDR		R6, cnt
+		ADI		R6, -2
+		STR		R6, cnt			;cnt -= 2
 		LDA		R5, c
-While3	LDR		R4, cnt
+While3	LDR		R4, flag
+		BNZ		R4, Wend3
+		LDR		R4, cnt
 		BRZ		R4, Wend3
-		LDB		R3, R5
-		ADI		R4, -1
-		STR		R4, cnt
-		ADI		R5, 1	
-		TRP		3
+; ready to call opd(s,k,j), test overflow
+		MOV		R5, SP
+		ADI		R5, -20			;Adjust for space needed
+		CMP		R5, SL
+		BLT		R5, OVERFLOW
+; Create Activation Record and invoke opd(s,k,c)
+		MOV		R3, FP			;save FP in R3
+		MOV		FP, SP			;FP = SP
+		ADI		SP, -4			;Adjust Stack Pointer for Return Address
+		STR		R3, SP			;PFP = FP
+		ADI		SP, -4			;Adjust Stack Pointer for PFP
+		LDB		R5, c			;set s = c[0]
+		STB		R5, SP			;pass s as parameter
+		ADI		SP, -4			;Adjust Stack Pointer for s
+		LDR		R5, tenth
+		STR		R5, SP			;pass k = tenth
+		ADI		SP, -4			;Adjust Stack Pointer for k
+		LDA		R0, c
+		LDR		R1, cnt
+		ADD		R0, R1			;pointer to c[cnt]
+		LDB		R5, R0
+		STB		R5, SP			;pass c = c[cnt]
+		ADI		SP, -4			;Adjust Stack Pointer for j
+		MOV		R1, PC
+		ADI		R1, 36			;3 * FixLength = 36
+		STR		R1, FP
+		JMP		opd
+		LDR		R1, cnt
+		ADI		R1, -1
+		STR		R1, cnt			;cnt--
+		SUB		R0, R0
+		ADI		R0, 10			;set R0 = 10
+		LDR		R1, tenth
+		MUL		R1, R0
+		STR		R1, tenth		;tenth *= 10
 		JMP		While3
-Wend3	JMP		endif2
+Wend3	LDR		R0, flag
+if5		BNZ		R0, endif5		;check flag, if it is good number, print it
+		LDR		R4, strl3		;print out string3
+		LDA		R5, str3
+print3	BRZ		R4, pend3
+		LDB		R3, R5
+		TRP		3
+		ADI		R5, 1
+		ADI		R4, -1
+		JMP		print3
+pend3	
+		LDR		R3, opdv
+		TRP		1
+		LDB		R3, newline
+		TRP		3
+endif5	JMP		endif2
 else2		
 ; ready to call getdata(), test overflow
 		MOV		R5, SP
@@ -288,6 +415,100 @@ While4	TRP		4
 Wend4	STB		R4, c			;c[0] = '\n'
 ; get ready to return
 RTN3	MOV		SP, FP			;De-allocate (SP = FP)
+		MOV		R5, FP
+		CMP 	R5, SB			;Test for Underflow (SP > SB)
+		BGT		R5, UNDERFLOW
+; Set Previous Frame to Current Frame and Return
+		LDR		R5, FP			;Return Address Pointed to by FP
+		MOV		R6, FP
+		ADI		R6, -4			;get PFP
+		LDR		FP, R6			;FP = PFP
+		JMR		R5				;Jump to Address in Register R5
+
+opd		MOV		R7, FP
+		ADI		R7, -8
+		LDB		R0, R7			;read parameter s, store in R0
+		ADI		R7, -4
+		LDR		R1, R7			;read parameter k, store in R1
+		ADI		R7, -4
+		LDB		R2, R7			;read parameter j, store in R2
+		SUB		R6, R6			;set R6 = 0 (local val t)
+check0	LDB		R3, Digit0
+		CMP		R3, R2			;compare c and '0'
+		BRZ		R3, Cend			;if j == '0', let R6 = 0
+check1	LDB		R3, Digit1
+		CMP		R3, R2
+		BNZ		R3, check2
+		ADI		R6, 1			;if j == '1', let R6 = 1
+		JMP		Cend
+check2	LDB		R3, Digit2
+		CMP		R3, R2
+		BNZ		R3, check3
+		ADI		R6, 2			;if j == '2', let R6 = 2
+		JMP		Cend
+check3	LDB		R3, Digit3
+		CMP		R3, R2
+		BNZ		R3, check4
+		ADI		R6, 3			;if j == '3', let R6 = 3
+		JMP		Cend
+check4	LDB		R3, Digit4
+		CMP		R3, R2
+		BNZ		R3, check5
+		ADI		R6, 4			;if j == '4', let R6 = 4
+		JMP		Cend
+check5	LDB		R3, Digit5
+		CMP		R3, R2
+		BNZ		R3, check6
+		ADI		R6, 5			;if j == '5', let R6 = 5
+		JMP		Cend
+check6	LDB		R3, Digit6
+		CMP		R3, R2
+		BNZ		R3, check7
+		ADI		R6, 6			;if j == '6', let R6 = 6
+		JMP		Cend
+check7	LDB		R3, Digit7
+		CMP		R3, R2
+		BNZ		R3, check8
+		ADI		R6, 7			;if j == '7', let R6 = 7
+		JMP		Cend
+check8	LDB		R3, Digit8
+		CMP		R3, R2
+		BNZ		R3, check9
+		ADI		R6, 8			;if j == '8', let R6 = 8
+		JMP		Cend
+check9	LDB		R3, Digit9
+		CMP		R3, R2
+		BNZ		R3, NotNum
+		ADI		R6, 9			;if j == '9', let R6 = 9
+		JMP		Cend
+NotNum	ADI		R6, 1
+		STR		R6, flag		;set flag = 1
+		MOV		R3, R2
+		TRP		3				;print c
+		LDR		R4, strl2		;print out string2
+		LDA		R5, str2
+print2	BRZ		R4, Cend
+		LDB		R3, R5
+		TRP		3
+		ADI		R5, 1
+		ADI		R4, -1
+		JMP		print2
+Cend	LDR		R5, flag
+		BNZ		R5, RTN4		;if flag == 0, skip update data
+if4		SUB		R3, R3			;set R3 = 0
+		LDB		R4, Psign
+		CMP		R4, R0			;compare s and '+'
+		BNZ		R4, else4
+		ADI		R3, 1			;set positive sign bit
+		JMP		endif4
+else4	ADI		R3, -1			;set negative sign bit
+endif4	MUL		R1, R3			;set k or -k
+		MUL		R6, R1			;t *= k or -k
+		LDR		R4, opdv
+		ADD		R4, R6			;opdv += t
+		STR		R4, opdv
+; get ready to return
+RTN4	MOV		SP, FP			;De-allocate (SP = FP)
 		MOV		R5, FP
 		CMP 	R5, SB			;Test for Underflow (SP > SB)
 		BGT		R5, UNDERFLOW
