@@ -94,6 +94,46 @@ While1	LDB		R0, Qsign
 		LDB		R1, c
 		CMP		R0, R1			;compare c[0] and '@'
 		BRZ		R0, END			;if a quit sign is received, quit the program
+While2	LDB		R0, data
+		BRZ		R0, Wend2
+if2		LDA		R1, c
+		LDR		R0, cnt
+		ADI		R0, -1
+		ADD		R1, R0			;pointer to c[cnt-1]
+		LDB		R3,	R1
+		LDB		R2, newline
+		CMP		R2, R3			;compare c[cnt-1] and '\n'
+		BNZ		R2, else2
+		SUB		R6, R6
+		STR		R6, data		;set data = 0
+		LDA		R5, c
+While3	LDR		R4, cnt
+		BRZ		R4, Wend3
+		LDB		R3, R5
+		ADI		R4, -1
+		STR		R4, cnt
+		ADI		R5, 1	
+		TRP		3
+		JMP		While3
+Wend3	JMP		endif2
+else2		
+; ready to call getdata(), test overflow
+		MOV		R5, SP
+		ADI		R5, -8			;Adjust for space needed
+		CMP		R5, SL
+		BLT		R5, OVERFLOW
+; Create Activation Record and invoke getdata()
+		MOV		R3, FP			;save FP in R3
+		MOV		FP, SP			;FP = SP
+		ADI		SP, -4			;Adjust Stack Pointer for Return Address
+		STR		R3, SP			;PFP = FP
+		ADI		SP, -4			;Adjust Stack Pointer for PFP
+		MOV		R1, PC
+		ADI		R1, 36			;3 * FixLength = 36
+		STR		R1, FP
+		JMP		getdata
+endif2	JMP		While2
+Wend2
 ; ready to call reset(a,b,c,d), test overflow
 		MOV		R5, SP
 		ADI		R5, -24			;Adjust for space needed
@@ -203,7 +243,21 @@ print1	BRZ		R4, pend1
 		ADI		R4, -1
 		JMP		print1
 pend1	
-; get ready to call flush()				
+; ready to call flush(), test overflow
+		MOV		R5, SP
+		ADI		R5, -8			;Adjust for space needed
+		CMP		R5, SL
+		BLT		R5, OVERFLOW
+; Create Activation Record and invoke flush()
+		MOV		R3, FP			;save FP in R3
+		MOV		FP, SP			;FP = SP
+		ADI		SP, -4			;Adjust Stack Pointer for Return Address
+		STR		R3, SP			;PFP = FP
+		ADI		SP, -4			;Adjust Stack Pointer for PFP
+		MOV		R1, PC
+		ADI		R1, 36			;3 * FixLength = 36
+		STR		R1, FP
+		JMP		flush
 		JMP		RTN2
 else1	LDA		R1, c
 		LDR		R3, cnt
@@ -224,3 +278,22 @@ RTN2	MOV		SP, FP			;De-allocate (SP = FP)
 		LDR		FP, R6			;FP = PFP
 		JMR		R5				;Jump to Address in Register R5
 
+flush	SUB		R0, R0
+		STR		R0, data		;set data = 0
+		LDB		R4, newline
+While4	TRP		4
+		CMP		R3, R4			;compare getchar() and '\n'
+		BRZ		R3, Wend4
+		JMP		While4
+Wend4	STB		R4, c			;c[0] = '\n'
+; get ready to return
+RTN3	MOV		SP, FP			;De-allocate (SP = FP)
+		MOV		R5, FP
+		CMP 	R5, SB			;Test for Underflow (SP > SB)
+		BGT		R5, UNDERFLOW
+; Set Previous Frame to Current Frame and Return
+		LDR		R5, FP			;Return Address Pointed to by FP
+		MOV		R6, FP
+		ADI		R6, -4			;get PFP
+		LDR		FP, R6			;FP = PFP
+		JMR		R5				;Jump to Address in Register R5
