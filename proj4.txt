@@ -6,6 +6,39 @@
 ;Data of the project
 
 valX	.INT	-99
+CNT		.INT	0
+IntSize	.INT	4
+MaxLen	.INT	30
+ARRAY	.INT	0
+		.INT	0
+		.INT	0
+		.INT	0
+		.INT	0
+		.INT	0
+		.INT	0
+		.INT	0
+		.INT	0
+		.INT	0
+		.INT	0
+		.INT	0
+		.INT	0
+		.INT	0
+		.INT	0
+		.INT	0
+		.INT	0
+		.INT	0
+		.INT	0
+		.INT	0
+		.INT	0
+		.INT	0
+		.INT	0
+		.INT	0
+		.INT	0
+		.INT	0
+		.INT	0
+		.INT	0
+		.INT	0
+		.INT	0
 OverF	.INT	-999999
 UnderF	.INT	-111111
 
@@ -14,7 +47,7 @@ space	.BYT	32
 letterI	.BYT	'i'
 letterS	.BYT	's'
 
-str1	.BYT	'P'
+str1	.BYT	'P'				;Please input a number: 
 		.BYT	'l'
 		.BYT	'e'
 		.BYT	'a'
@@ -39,7 +72,7 @@ str1	.BYT	'P'
 		.BYT	32
 strl1	.INT	23
 
-str2	.BYT	'F'
+str2	.BYT	'F'				;Fibonacci of 
 		.BYT	'i'
 		.BYT	'b'
 		.BYT	'o'
@@ -87,7 +120,25 @@ pend1
 		ADI		R1, 36			;3 * FixLength = 36
 		STR		R1, FP
 		JMP		Fib
+; put Fibonacci number into the ARRAY if it is not full
+		LDR		R1, CNT
+		ADI		R1, 2
+		LDR		R2, MaxLen
+		CMP		R2, R1			;check if ARRAY is full
+		BLT		R2, OVERFLOW
+		LDR		R1, CNT
+		LDR		R5, IntSize
+		MUL		R1, R5			;calculate the offset
+		LDA		R3, ARRAY
+		ADD		R3, R1			;pointer to ARRAY[CNT]
+		LDR		R4, valX
+		STR		R4, R3
+		ADI		R3, 4			;pointing to the next slot
 		LDR		R0, SP			;get result of fib(x)
+		STR		R0, R3
+		LDR		R1, CNT
+		ADI		R1, 2
+		STR		R1, CNT			;CNT += 2
 		LDR		R4, strl2		;print out str2 and result of fib(x)
 		LDA		R5, str2
 print2	BRZ		R4, pend2
@@ -96,7 +147,7 @@ print2	BRZ		R4, pend2
 		ADI		R5, 1
 		ADI		R4, -1
 		JMP		print2
-pend2	
+pend2			
 		LDR		R3, valX
 		TRP		1
 		LDB		R3, space
@@ -113,6 +164,32 @@ pend2
 		TRP		3
 		JMP		LOOP
 QUIT1
+; part II of the Program
+		LDB		R3, newline
+		TRP		3
+		LDA		R0, ARRAY		;pointer head -> ARRAY[0]
+		LDR		R1, CNT
+		LDR		R2, IntSize
+		ADI		R1, -1
+		MUL		R1, R2
+		ADD		R1, R0			;pointer tail -> ARRAY[CNT-1]
+While1	MOV		R2, R1
+		CMP		R2, R0			;compare two pointers
+		BLT		R2, Wend1
+		BRZ		R2, Wend1
+		LDR		R3, R0			;print ARRAY[head]
+		TRP		1
+		LDB		R3, space
+		TRP		3
+		LDR		R3, R1			;print ARRAY[tail]
+		TRP		1
+		LDB		R3, space
+		TRP		3
+		ADI		R0, 4			;move head pointer
+		ADI		R1, -4			;move tail pointer
+		JMP		While1
+Wend1	LDB		R3, newline
+		TRP		3
 END		TRP		0
 
 OVERFLOW

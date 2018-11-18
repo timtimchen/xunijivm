@@ -35,7 +35,7 @@ Digit7	.BYT	'7'
 Digit8	.BYT	'8'
 Digit9	.BYT	'9'
 
-str1	.BYT	'N'
+str1	.BYT	'N'				;Number too Big\n
 		.BYT	'u'
 		.BYT	'm'
 		.BYT	'b'
@@ -52,7 +52,7 @@ str1	.BYT	'N'
 		.BYT	10
 strl1	.INT	15
 
-str2	.BYT	32
+str2	.BYT	32				; is not a number\n
 		.BYT	'i'
 		.BYT	's'
 		.BYT	32
@@ -71,7 +71,7 @@ str2	.BYT	32
 		.BYT	10
 strl2	.INT	17
 
-str3	.BYT	'O'
+str3	.BYT	'O'				;Operand is 
 		.BYT	'p'
 		.BYT	'e'
 		.BYT	'r'
@@ -116,7 +116,6 @@ START
 		ADI		R1, 36			;3 * FixLength = 36
 		STR		R1, FP
 		JMP		reset
-
 ; ready to call getdata(), test overflow
 		MOV		R5, SP
 		ADI		R5, -8			;Adjust for space needed
@@ -323,7 +322,7 @@ UNDERFLOW
 		TRP		3
 		TRP		0
 
-reset	SUB		R6, R6			;set 0 to R6
+reset	SUB		R6, R6			;set R6 = 0
 		LDR		R4, SIZE
 		LDA		R5, c
 loop1	BRZ		R4, lend1		;clear array c[size]
@@ -387,8 +386,8 @@ pend1
 		JMP		flush
 		JMP		RTN2
 else1	LDA		R1, c
-		LDR		R3, cnt
-		ADD		R1, R3			;pointer to c[cnt]
+		LDR		R0, cnt
+		ADD		R1, R0			;pointer to c[cnt]
 		TRP		4				;invoke getchar()
 		STB		R3, R1			;c[cnt] = getchar()
 		ADI		R0, 1
@@ -484,7 +483,7 @@ check9	LDB		R3, Digit9
 NotNum	ADI		R6, 1
 		STR		R6, flag		;set flag = 1
 		MOV		R3, R2
-		TRP		3				;print c
+		TRP		3				;print j
 		LDR		R4, strl2		;print out string2
 		LDA		R5, str2
 print2	BRZ		R4, Cend
