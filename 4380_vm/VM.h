@@ -15,9 +15,12 @@
 #include <vector>
 #include <map>
 #include <iterator>
+#include <stdio.h>
 
+#define MAX_THREADS 6  // max total threads
 #define REG_SIZE 13  // total general regesters
 #define MEM_SIZE 60000  // total bytes of memory
+#define MEM_SIZE_T 10000  // total bytes for one thread
 #define FIX_LENGTH 12  // fixed length of an instrution
 #define INT_SIZE 4  // size of an integer
 #define JMP 1
@@ -45,6 +48,11 @@
 #define LDRI 23
 #define STBI 24
 #define LDBI 25
+#define RUN 26
+#define END 27
+#define BLK 28
+#define LCK 29
+#define ULK 30
 #define NOP 100
 #define _INT -4
 #define _BYT -1
@@ -58,16 +66,22 @@ struct Instruction {
 class VM {
 private:
     // VM register, 0 - 7: general Rigsiter, 8: PC, 9: SL, 10: SP, 11: FP, 12: SB
+    bool threadIdTable[MAX_THREADS];  // thread activation status table
     int REG[REG_SIZE];  // VM registers
     char MEM[MEM_SIZE];  // VM memory
     int memoryUsedCount;
-    std::map<std::string, int> OpCodeTable;  // Operator Codes map (including Directives
-    std::map<std::string, int> SymbolTable;  // Operator Codes map (including Directives
+    std::map<std::string, int> OpCodeTable;  // Operator Codes map (including Directives)
+    std::map<std::string, int> SymbolTable;  // used symbols map
 
 public:
     VM() {
         REG[8] = 0;
         memoryUsedCount = 0;
+        
+        threadIdTable[0] = true;  // activate main thread (id = 0)
+        for (int i = 1; i < MAX_THREADS; i++) {
+            threadIdTable[i] = false;  // inactivate other thread id
+        }
         
         OpCodeTable.insert(std::pair<std::string, int>("JMP", JMP));
         OpCodeTable.insert(std::pair<std::string, int>("JMR", JMR));
@@ -90,6 +104,11 @@ public:
         OpCodeTable.insert(std::pair<std::string, int>("OR", OR));
         OpCodeTable.insert(std::pair<std::string, int>("CMP", CMP));
         OpCodeTable.insert(std::pair<std::string, int>("TRP", TRP));
+        OpCodeTable.insert(std::pair<std::string, int>("RUN", RUN));
+        OpCodeTable.insert(std::pair<std::string, int>("END", END));
+        OpCodeTable.insert(std::pair<std::string, int>("BLK", BLK));
+        OpCodeTable.insert(std::pair<std::string, int>("LCK", LCK));
+        OpCodeTable.insert(std::pair<std::string, int>("ULK", ULK));
         OpCodeTable.insert(std::pair<std::string, int>("NOP", NOP));
         OpCodeTable.insert(std::pair<std::string, int>(".INT", _INT));
         OpCodeTable.insert(std::pair<std::string, int>(".BYT", _BYT));
@@ -193,7 +212,7 @@ public:
                             // treat a single label as a NOP command
                             SymbolTable.insert(std::pair<std::string, int>(tokens[0], addrCounter));
                             addrCounter += FIX_LENGTH;
-                        } else {
+                        } else if (OpCodeTable[tokens[0]] != END && OpCodeTable[tokens[0]] != BLK) {
                             std::cout << "Command line too short. (line: " << lineCounter << ")\n";
                             return false;
                         }
@@ -261,7 +280,7 @@ public:
                             // treat a single label as a NOP command
                             loadInstruction(addrCounter, NOP, 0, 0);
                             addrCounter += FIX_LENGTH;
-                        } else {
+                        } else if (OpCodeTable[tokens[0]] != END && OpCodeTable[tokens[0]] != BLK) {
                             std::cout << "Command line too short. (line: " << lineCounter << ")\n";
                             return false;
                         }
@@ -477,6 +496,36 @@ public:
                                         return false;
                                     }
                                     break;
+                                case RUN:
+                                    if (tokenCounter + 2 < tokens.size() && isRegsterName(tokens[tokenCounter + 1]) && SymbolTable.find(tokens[tokenCounter + 2]) != SymbolTable.end()) {
+                                        loadInstruction(addrCounter, RUN, getRegisterId(tokens[tokenCounter + 1]), SymbolTable[tokens[tokenCounter + 2]]);
+                                    } else {
+                                        std::cout << "Command Line Error. (line: " << lineCounter << ")\n";
+                                        return false;
+                                    }
+                                    break;
+                                case END:
+                                    loadInstruction(addrCounter, END, 0, 0);
+                                    break;
+                                case BLK:
+                                    loadInstruction(addrCounter, BLK, 0, 0);
+                                    break;
+                                case LCK:
+                                    if (tokenCounter + 1 < tokens.size() && SymbolTable.find(tokens[tokenCounter + 1]) != SymbolTable.end()) {
+                                        loadInstruction(addrCounter, LCK, SymbolTable[tokens[tokenCounter + 1]], 0);
+                                    } else {
+                                        std::cout << "Command Line Error. (line: " << lineCounter << ")\n";
+                                        return false;
+                                    }
+                                    break;
+                                case ULK:
+                                    if (tokenCounter + 1 < tokens.size() && SymbolTable.find(tokens[tokenCounter + 1]) != SymbolTable.end()) {
+                                        loadInstruction(addrCounter, ULK, SymbolTable[tokens[tokenCounter + 1]], 0);
+                                    } else {
+                                        std::cout << "Command Line Error. (line: " << lineCounter << ")\n";
+                                        return false;
+                                    }
+                                    break;
                                 case NOP:
                                     loadInstruction(addrCounter, NOP, 0, 0);
                                     break;
@@ -524,283 +573,376 @@ public:
     
     void run() {
         bool programStop = false;
+        int currentThreadId = 0;
+        int lastRunThreadId = 0;
         REG[8] = 0; // setting the PC register, start from MEM[0]
         REG[9] = memoryUsedCount; // setting the SL register nextll.;ju,,;.l,.l,m to the last used byte
-        REG[12] = MEM_SIZE - 4; // setting the SB register to the last slot of Memory
+        REG[12] = MEM_SIZE_T - INT_SIZE - REG_SIZE * INT_SIZE; // setting the SB register to the last slot of Memory
         REG[10] = REG[12]; // setting the SP register
-        REG[11] = REG[10]; // setting the FP register, first pointing to out of memory
-        while (!programStop && REG[8] < MEM_SIZE) {
-            Instruction * ip = fetchInstruction(REG[8]);
-            if (ip == nullptr) {
-                std::cout << "Out of Memory!" << std::endl;
-                return;
-            }
-            switch (ip -> OpCode) {
-                case JMP:
-                    REG[8] = ip -> Oprand1;
-                    break;
-                case JMR:
-                    if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE) {
-                        REG[8] = REG[ip->Oprand1];
-                    } else {
-                        std::cout << "Unexpected Error!" << std::endl;
-                        return;
-                    }
-                    break;
-                case BNZ:
-                    if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 <= MEM_SIZE - FIX_LENGTH) {
-                        if (REG[ip->Oprand1] != 0) {
-                            REG[8] = ip->Oprand2;
+        REG[11] = REG[10]; // setting the FP register
+        while (!programStop && REG[8] < memoryUsedCount) {
+            if (threadIdTable[currentThreadId]) {  // check if a threadId is activated
+                if (currentThreadId != lastRunThreadId) {
+                    // if current tid not equal last run tid, do context switch
+                    // store last run regsters
+                    memcpy(&(MEM[REG[12] + INT_SIZE]), REG, REG_SIZE * INT_SIZE);
+                    // load current regsters
+                    memcpy(REG, &(MEM[currentThreadId * MEM_SIZE_T + REG[12] + INT_SIZE]), REG_SIZE * INT_SIZE);
+                    lastRunThreadId = currentThreadId;
+                }
+                // execute one instruction (Round-robin scheduling)
+                Instruction * ip = fetchInstruction(REG[8]);
+                if (ip == nullptr) {
+                    std::cout << "Out of Memory!" << std::endl;
+                    return;
+                }
+                switch (ip -> OpCode) {
+                    case JMP:
+                        REG[8] = ip -> Oprand1;
+                        break;
+                    case JMR:
+                        if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE) {
+                            REG[8] = REG[ip->Oprand1];
                         } else {
-                            REG[8] += FIX_LENGTH;
-                        }
-                    } else {
-                        std::cout << "Unexpected Error!" << std::endl;
-                        return;
-                    }
-                    break;
-                case BGT:
-                    if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 <= MEM_SIZE - FIX_LENGTH) {
-                        if (REG[ip->Oprand1] > 0) {
-                            REG[8] = ip->Oprand2;
-                        } else {
-                            REG[8] += FIX_LENGTH;
-                        }
-                    } else {
-                        std::cout << "Unexpected Error!" << std::endl;
-                        return;
-                    }
-                    break;
-                case BLT:
-                    if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 <= MEM_SIZE - FIX_LENGTH) {
-                        if (REG[ip->Oprand1] < 0) {
-                            REG[8] = ip->Oprand2;
-                        } else {
-                            REG[8] += FIX_LENGTH;
-                        }
-                    } else {
-                        std::cout << "Unexpected Error!" << std::endl;
-                        return;
-                    }
-                    break;
-                case BRZ:
-                    if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 <= MEM_SIZE - FIX_LENGTH) {
-                        if (REG[ip->Oprand1] == 0) {
-                            REG[8] = ip->Oprand2;
-                        } else {
-                            REG[8] += FIX_LENGTH;
-                        }
-                    } else {
-                        std::cout << "Unexpected Error!" << std::endl;
-                        return;
-                    }
-                    break;
-                case MOV:
-                    REG[8] += FIX_LENGTH;
-                    if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 >= 0 && ip->Oprand2 < REG_SIZE) {
-                        REG[ip->Oprand1] = REG[ip->Oprand2];
-                    } else {
-                        std::cout << "Unexpected Error!" << std::endl;
-                        return;
-                    }
-                    break;
-                case LDA:
-                    REG[8] += FIX_LENGTH;
-                   if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 <= MEM_SIZE - INT_SIZE) {
-                        REG[ip->Oprand1] = ip->Oprand2;
-                    } else {
-                        std::cout << "Unexpected Error!" << std::endl;
-                        return;
-                    }
-                     break;
-                case STR:
-                    REG[8] += FIX_LENGTH;
-                    if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 <= MEM_SIZE - INT_SIZE) {
-                        int *p = reinterpret_cast<int *>(&MEM[ip->Oprand2]);
-                        *p = REG[ip->Oprand1];
-                    } else {
-                        std::cout << "Unexpected Error!" << std::endl;
-                        return;
-                    }
-                    break;
-                case LDR:
-                    REG[8] += FIX_LENGTH;
-                   if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 <= MEM_SIZE - INT_SIZE) {
-                        int *p = reinterpret_cast<int *>(&MEM[ip->Oprand2]);
-                        REG[ip->Oprand1] = *p;
-                    } else {
-                        std::cout << "Unexpected Error!" << std::endl;
-                        return;
-                    }
-                    break;
-                case STB:
-                    REG[8] += FIX_LENGTH;
-                    if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 < MEM_SIZE) {
-                        MEM[ip->Oprand2] = static_cast<char>(REG[ip->Oprand1]);
-                    } else {
-                        std::cout << "Unexpected Error!" << std::endl;
-                        return;
-                    }
-                    break;
-                case LDB:
-                    REG[8] += FIX_LENGTH;
-                    if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 < MEM_SIZE) {
-                        REG[ip->Oprand1] = 0; // clear the register
-                        REG[ip->Oprand1] = static_cast<int>(MEM[ip->Oprand2]);
-                    } else {
-                        std::cout << "Unexpected Error!" << std::endl;
-                        return;
-                    }
-                    break;
-                case ADD:
-                    REG[8] += FIX_LENGTH;
-                   if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 >= 0 && ip->Oprand2 < REG_SIZE) {
-                        REG[ip->Oprand1] += REG[ip->Oprand2];
-                    } else {
-                        std::cout << "Unexpected Error!" << std::endl;
-                        return;
-                    }
-                    break;
-                case ADI:
-                    REG[8] += FIX_LENGTH;
-                    if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2) {
-                        REG[ip->Oprand1] += ip->Oprand2;
-                    } else {
-                        std::cout << "Unexpected Error!" << std::endl;
-                        return;
-                    }
-                    break;
-                case SUB:
-                    REG[8] += FIX_LENGTH;
-                    if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 >= 0 && ip->Oprand2 < REG_SIZE) {
-                        REG[ip->Oprand1] -= REG[ip->Oprand2];
-                    } else {
-                        std::cout << "Unexpected Error!" << std::endl;
-                        return;
-                    }
-                    break;
-                case MUL:
-                    REG[8] += FIX_LENGTH;
-                    if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 >= 0 && ip->Oprand2 < REG_SIZE) {
-                        REG[ip->Oprand1] *= REG[ip->Oprand2];
-                    } else {
-                        std::cout << "Unexpected Error!" << std::endl;
-                        return;
-                    }
-                    break;
-                case DIV:
-                    REG[8] += FIX_LENGTH;
-                    if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 >= 0 && ip->Oprand2 < REG_SIZE) {
-                        REG[ip->Oprand1] /= REG[ip->Oprand2];
-                    } else {
-                        std::cout << "Unexpected Error!" << std::endl;
-                        return;
-                    }
-                    break;
-                case AND:
-                    REG[8] += FIX_LENGTH;
-                    if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 >= 0 && ip->Oprand2 < REG_SIZE) {
-                        if (REG[ip->Oprand1] == 0 || REG[ip->Oprand2] == 0) {
-                            REG[ip->Oprand1] = 0;
-                        } else {
-                            REG[ip->Oprand1] = 1;
-                        }
-                    } else {
-                        std::cout << "Unexpected Error!" << std::endl;
-                        return;
-                    }
-                    break;
-                case OR:
-                    REG[8] += FIX_LENGTH;
-                    if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 >= 0 && ip->Oprand2 < REG_SIZE) {
-                        if (REG[ip->Oprand1] == 0 && REG[ip->Oprand2] == 0) {
-                            REG[ip->Oprand1] = 0;
-                        } else {
-                            REG[ip->Oprand1] = 1;
-                        }
-                    } else {
-                        std::cout << "Unexpected Error!" << std::endl;
-                        return;
-                    }
-                    break;
-                case CMP:
-                    REG[8] += FIX_LENGTH;
-                    if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 >= 0 && ip->Oprand2 < REG_SIZE) {
-                        REG[ip->Oprand1] -= REG[ip->Oprand2];
-                    } else {
-                        std::cout << "Unexpected Error!" << std::endl;
-                        return;
-                    }
-                    break;
-                case TRP:
-                    REG[8] += FIX_LENGTH;
-                    switch (ip -> Oprand1) {
-                        case 0:
-                            programStop = true;
-                            break;
-                        case 1:
-                            std::cout << REG[3];
-                            break;
-                        case 2:
-                            std::cin >> REG[3];
-                            break;
-                        case 3:
-                            std::cout << static_cast<char>(REG[3]);
-                            break;
-                        case 4:
-                            REG[3] = getchar();
-                            break;
-                        default:
                             std::cout << "Unexpected Error!" << std::endl;
                             return;
-                    }
-                    break;
-                case STRI:
-                    REG[8] += FIX_LENGTH;
-                    if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 <= MEM_SIZE - INT_SIZE) {
-                        int *p = reinterpret_cast<int *>(&MEM[REG[ip->Oprand2]]);
-                        *p = REG[ip->Oprand1];
-                    } else {
-                        std::cout << "Unexpected Error!" << std::endl;
+                        }
+                        break;
+                    case BNZ:
+                        if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 <= MEM_SIZE - FIX_LENGTH) {
+                            if (REG[ip->Oprand1] != 0) {
+                                REG[8] = ip->Oprand2;
+                            } else {
+                                REG[8] += FIX_LENGTH;
+                            }
+                        } else {
+                            std::cout << "Unexpected Error!" << std::endl;
+                            return;
+                        }
+                        break;
+                    case BGT:
+                        if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 <= MEM_SIZE - FIX_LENGTH) {
+                            if (REG[ip->Oprand1] > 0) {
+                                REG[8] = ip->Oprand2;
+                            } else {
+                                REG[8] += FIX_LENGTH;
+                            }
+                        } else {
+                            std::cout << "Unexpected Error!" << std::endl;
+                            return;
+                        }
+                        break;
+                    case BLT:
+                        if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 <= MEM_SIZE - FIX_LENGTH) {
+                            if (REG[ip->Oprand1] < 0) {
+                                REG[8] = ip->Oprand2;
+                            } else {
+                                REG[8] += FIX_LENGTH;
+                            }
+                        } else {
+                            std::cout << "Unexpected Error!" << std::endl;
+                            return;
+                        }
+                        break;
+                    case BRZ:
+                        if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 <= MEM_SIZE - FIX_LENGTH) {
+                            if (REG[ip->Oprand1] == 0) {
+                                REG[8] = ip->Oprand2;
+                            } else {
+                                REG[8] += FIX_LENGTH;
+                            }
+                        } else {
+                            std::cout << "Unexpected Error!" << std::endl;
+                            return;
+                        }
+                        break;
+                    case MOV:
+                        REG[8] += FIX_LENGTH;
+                        if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 >= 0 && ip->Oprand2 < REG_SIZE) {
+                            REG[ip->Oprand1] = REG[ip->Oprand2];
+                        } else {
+                            std::cout << "Unexpected Error!" << std::endl;
+                            return;
+                        }
+                        break;
+                    case LDA:
+                        REG[8] += FIX_LENGTH;
+                        if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 <= MEM_SIZE - INT_SIZE) {
+                            REG[ip->Oprand1] = ip->Oprand2;
+                        } else {
+                            std::cout << "Unexpected Error!" << std::endl;
+                            return;
+                        }
+                        break;
+                    case STR:
+                        REG[8] += FIX_LENGTH;
+                        if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 <= MEM_SIZE - INT_SIZE) {
+                            int *p = reinterpret_cast<int *>(&MEM[ip->Oprand2]);
+                            *p = REG[ip->Oprand1];
+                        } else {
+                            std::cout << "Unexpected Error!" << std::endl;
+                            return;
+                        }
+                        break;
+                    case LDR:
+                        REG[8] += FIX_LENGTH;
+                        if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 <= MEM_SIZE - INT_SIZE) {
+                            int *p = reinterpret_cast<int *>(&MEM[ip->Oprand2]);
+                            REG[ip->Oprand1] = *p;
+                        } else {
+                            std::cout << "Unexpected Error!" << std::endl;
+                            return;
+                        }
+                        break;
+                    case STB:
+                        REG[8] += FIX_LENGTH;
+                        if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 < MEM_SIZE) {
+                            MEM[ip->Oprand2] = static_cast<char>(REG[ip->Oprand1]);
+                        } else {
+                            std::cout << "Unexpected Error!" << std::endl;
+                            return;
+                        }
+                        break;
+                    case LDB:
+                        REG[8] += FIX_LENGTH;
+                        if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 < MEM_SIZE) {
+                            REG[ip->Oprand1] = 0; // clear the register
+                            REG[ip->Oprand1] = static_cast<int>(MEM[ip->Oprand2]);
+                        } else {
+                            std::cout << "Unexpected Error!" << std::endl;
+                            return;
+                        }
+                        break;
+                    case ADD:
+                        REG[8] += FIX_LENGTH;
+                        if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 >= 0 && ip->Oprand2 < REG_SIZE) {
+                            REG[ip->Oprand1] += REG[ip->Oprand2];
+                        } else {
+                            std::cout << "Unexpected Error!" << std::endl;
+                            return;
+                        }
+                        break;
+                    case ADI:
+                        REG[8] += FIX_LENGTH;
+                        if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2) {
+                            REG[ip->Oprand1] += ip->Oprand2;
+                        } else {
+                            std::cout << "Unexpected Error!" << std::endl;
+                            return;
+                        }
+                        break;
+                    case SUB:
+                        REG[8] += FIX_LENGTH;
+                        if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 >= 0 && ip->Oprand2 < REG_SIZE) {
+                            REG[ip->Oprand1] -= REG[ip->Oprand2];
+                        } else {
+                            std::cout << "Unexpected Error!" << std::endl;
+                            return;
+                        }
+                        break;
+                    case MUL:
+                        REG[8] += FIX_LENGTH;
+                        if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 >= 0 && ip->Oprand2 < REG_SIZE) {
+                            REG[ip->Oprand1] *= REG[ip->Oprand2];
+                        } else {
+                            std::cout << "Unexpected Error!" << std::endl;
+                            return;
+                        }
+                        break;
+                    case DIV:
+                        REG[8] += FIX_LENGTH;
+                        if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 >= 0 && ip->Oprand2 < REG_SIZE) {
+                            REG[ip->Oprand1] /= REG[ip->Oprand2];
+                        } else {
+                            std::cout << "Unexpected Error!" << std::endl;
+                            return;
+                        }
+                        break;
+                    case AND:
+                        REG[8] += FIX_LENGTH;
+                        if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 >= 0 && ip->Oprand2 < REG_SIZE) {
+                            if (REG[ip->Oprand1] == 0 || REG[ip->Oprand2] == 0) {
+                                REG[ip->Oprand1] = 0;
+                            } else {
+                                REG[ip->Oprand1] = 1;
+                            }
+                        } else {
+                            std::cout << "Unexpected Error!" << std::endl;
+                            return;
+                        }
+                        break;
+                    case OR:
+                        REG[8] += FIX_LENGTH;
+                        if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 >= 0 && ip->Oprand2 < REG_SIZE) {
+                            if (REG[ip->Oprand1] == 0 && REG[ip->Oprand2] == 0) {
+                                REG[ip->Oprand1] = 0;
+                            } else {
+                                REG[ip->Oprand1] = 1;
+                            }
+                        } else {
+                            std::cout << "Unexpected Error!" << std::endl;
+                            return;
+                        }
+                        break;
+                    case CMP:
+                        REG[8] += FIX_LENGTH;
+                        if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 >= 0 && ip->Oprand2 < REG_SIZE) {
+                            REG[ip->Oprand1] -= REG[ip->Oprand2];
+                        } else {
+                            std::cout << "Unexpected Error!" << std::endl;
+                            return;
+                        }
+                        break;
+                    case TRP:
+                        REG[8] += FIX_LENGTH;
+                        switch (ip -> Oprand1) {
+                            case 0:
+                                programStop = true;
+                                break;
+                            case 1:
+                                std::cout << REG[3];
+                                break;
+                            case 2:
+                                std::cin >> REG[3];
+                                break;
+                            case 3:
+                                std::cout << static_cast<char>(REG[3]);
+                                break;
+                            case 4:
+                                REG[3] = getchar();
+                                break;
+                            default:
+                                std::cout << "Unexpected Error!" << std::endl;
+                                return;
+                        }
+                        break;
+                    case STRI:
+                        REG[8] += FIX_LENGTH;
+                        if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 <= MEM_SIZE - INT_SIZE) {
+                            int *p = reinterpret_cast<int *>(&MEM[REG[ip->Oprand2]]);
+                            *p = REG[ip->Oprand1];
+                        } else {
+                            std::cout << "Unexpected Error!" << std::endl;
+                            return;
+                        }
+                        break;
+                    case LDRI:
+                        REG[8] += FIX_LENGTH;
+                        if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 <= MEM_SIZE - INT_SIZE) {
+                            int *p = reinterpret_cast<int *>(&MEM[REG[ip->Oprand2]]);
+                            REG[ip->Oprand1] = *p;
+                        } else {
+                            std::cout << "Unexpected Error!" << std::endl;
+                            return;
+                        }
+                        break;
+                    case STBI:
+                        REG[8] += FIX_LENGTH;
+                        if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 < MEM_SIZE) {
+                            MEM[REG[ip->Oprand2]] = static_cast<char>(REG[ip->Oprand1]);
+                        } else {
+                            std::cout << "Unexpected Error!" << std::endl;
+                            return;
+                        }
+                        break;
+                    case LDBI:
+                        REG[8] += FIX_LENGTH;
+                        if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 < MEM_SIZE) {
+                            REG[ip->Oprand1] = 0; // clear the register
+                            REG[ip->Oprand1] = static_cast<int>(MEM[REG[ip->Oprand2]]);
+                        } else {
+                            std::cout << "Unexpected Error!" << std::endl;
+                            return;
+                        }
+                        break;
+                    case RUN:
+                        REG[8] += FIX_LENGTH;
+                        if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 < MEM_SIZE) {
+                            if (currentThreadId != 0) {
+                                std::cout << "RUN command can only apply in the MAIN thread." << std::endl;
+                                return;
+                            }
+                            int availableThreadId;
+                            // find an available Thread Id, which status is false in the threadIdTable
+                            for (availableThreadId = 1; availableThreadId < MAX_THREADS; availableThreadId++) {
+                                if (!threadIdTable[availableThreadId]) break;
+                            }
+                            if (availableThreadId >= MAX_THREADS) {
+                                std::cout << "Overflow Exception! Created too many Threads." << std::endl;
+                                return;
+                            } else {
+                                int tempPC = REG[8];  // store the PC of current thread
+                                REG[8] = ip->Oprand2;  // set the start point of new thread
+                                // set the running context of new thread
+                                memcpy(&(MEM[availableThreadId * MEM_SIZE_T + REG[12] + INT_SIZE]), REG, REG_SIZE * INT_SIZE);
+                                REG[8] = tempPC;  // restore the PC of current thread
+                                threadIdTable[availableThreadId] = true; // activate new thread
+                            }
+                        } else {
+                            std::cout << "Unexpected Error!" << std::endl;
+                            return;
+                        }
+                        break;
+                    case END:
+                        if (currentThreadId > 0 && currentThreadId < MAX_THREADS) {
+                            threadIdTable[currentThreadId] = false;  // inactivate the current thread
+                        } else if (currentThreadId == 0) {
+                            REG[8] += FIX_LENGTH;
+                        }
+                        break;
+                    case BLK:
+                        if (currentThreadId == 0) {
+                            int activatedThreadId;
+                            // find an available Thread Id, which status is false in the threadIdTable
+                            for (activatedThreadId = 1; activatedThreadId < MAX_THREADS; activatedThreadId++) {
+                                if (threadIdTable[activatedThreadId]) break;
+                            }
+                            if (activatedThreadId >= MAX_THREADS) {
+                                REG[8] += FIX_LENGTH;
+                            }
+                            // if there are still some threads activated, keep waiting (not changing PC)
+                        } else {
+                            REG[8] += FIX_LENGTH;
+                        }
+                        break;
+                    case LCK:
+                        if (ip->Oprand1 >= 0 && ip->Oprand1 < memoryUsedCount) {
+                            // get the lock status
+                            int *p = reinterpret_cast<int *>(&MEM[ip->Oprand1]);
+                            if (*p == -1) {
+                                // the lock is available, locked it by current thread
+                                *p = currentThreadId;
+                                REG[8] += FIX_LENGTH;
+                            }
+                            // if the lock has been locked, keep waiting (not changing PC)
+                        } else {
+                            std::cout << "Unexpected Error!" << std::endl;
+                            return;
+                        }
+                        break;
+                    case ULK:
+                        if (ip->Oprand1 >= 0 && ip->Oprand1 < memoryUsedCount) {
+                            // get the lock status
+                            int *p = reinterpret_cast<int *>(&MEM[ip->Oprand1]);
+                            if (*p == currentThreadId) {
+                                // if the lock is locked by current thread, release it
+                                *p = -1;
+                            }
+                        } else {
+                            std::cout << "Unexpected Error!" << std::endl;
+                            return;
+                        }
+                        REG[8] += FIX_LENGTH;
+                        break;
+                    case NOP:
+                        REG[8] += FIX_LENGTH;
+                        break;
+                    default:
+                        std::cout << "Unexpected OpCode Error!\n" << ip -> OpCode << " : " << ip -> Oprand1 << " : " << ip -> Oprand2 << std::endl;
                         return;
-                    }
-                    break;
-                case LDRI:
-                    REG[8] += FIX_LENGTH;
-                    if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 <= MEM_SIZE - INT_SIZE) {
-                        int *p = reinterpret_cast<int *>(&MEM[REG[ip->Oprand2]]);
-                        REG[ip->Oprand1] = *p;
-                    } else {
-                        std::cout << "Unexpected Error!" << std::endl;
-                        return;
-                    }
-                    break;
-                case STBI:
-                    REG[8] += FIX_LENGTH;
-                    if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 < MEM_SIZE) {
-                        MEM[REG[ip->Oprand2]] = static_cast<char>(REG[ip->Oprand1]);
-                    } else {
-                        std::cout << "Unexpected Error!" << std::endl;
-                        return;
-                    }
-                    break;
-                case LDBI:
-                    REG[8] += FIX_LENGTH;
-                    if (ip->Oprand1 >= 0 && ip->Oprand1 < REG_SIZE && ip->Oprand2 < MEM_SIZE) {
-                        REG[ip->Oprand1] = 0; // clear the register
-                        REG[ip->Oprand1] = static_cast<int>(MEM[REG[ip->Oprand2]]);
-                    } else {
-                        std::cout << "Unexpected Error!" << std::endl;
-                        return;
-                    }
-                    break;
-                case NOP:
-                    REG[8] += FIX_LENGTH;
-                    break;
-                default:
-                    std::cout << "Unexpected OpCode Error!" << std::endl;
-                    return;
+                }
             }
+            currentThreadId = (currentThreadId + 1) % MAX_THREADS;
         }
     }
     

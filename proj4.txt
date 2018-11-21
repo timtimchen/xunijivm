@@ -190,7 +190,7 @@ While1	MOV		R2, R1
 		JMP		While1
 Wend1	LDB		R3, newline
 		TRP		3
-END		TRP		0
+PROEND	TRP		0
 
 OVERFLOW
 		LDB		R3, newline
