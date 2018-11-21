@@ -280,7 +280,13 @@ public:
                             // treat a single label as a NOP command
                             loadInstruction(addrCounter, NOP, 0, 0);
                             addrCounter += FIX_LENGTH;
-                        } else if (OpCodeTable[tokens[0]] != END && OpCodeTable[tokens[0]] != BLK) {
+                        } else if (OpCodeTable[tokens[0]] == END) {
+                            loadInstruction(addrCounter, END, 0, 0);
+                            addrCounter += FIX_LENGTH;
+                        } else if (OpCodeTable[tokens[0]] == BLK) {
+                            loadInstruction(addrCounter, BLK, 0, 0);
+                            addrCounter += FIX_LENGTH;
+                        } else {
                             std::cout << "Command line too short. (line: " << lineCounter << ")\n";
                             return false;
                         }
@@ -576,10 +582,11 @@ public:
         int currentThreadId = 0;
         int lastRunThreadId = 0;
         REG[8] = 0; // setting the PC register, start from MEM[0]
-        REG[9] = memoryUsedCount; // setting the SL register nextll.;ju,,;.l,.l,m to the last used byte
+        REG[9] = memoryUsedCount; // setting the SL register next to the last used byte
         REG[12] = MEM_SIZE_T - INT_SIZE - REG_SIZE * INT_SIZE; // setting the SB register to the last slot of Memory
         REG[10] = REG[12]; // setting the SP register
         REG[11] = REG[10]; // setting the FP register
+        int contextIndex = REG[12] + INT_SIZE;
         while (!programStop && REG[8] < memoryUsedCount) {
             if (threadIdTable[currentThreadId]) {  // check if a threadId is activated
                 if (currentThreadId != lastRunThreadId) {
@@ -587,12 +594,13 @@ public:
                     // store last run regsters
                     memcpy(&(MEM[REG[12] + INT_SIZE]), REG, REG_SIZE * INT_SIZE);
                     // load current regsters
-                    memcpy(REG, &(MEM[currentThreadId * MEM_SIZE_T + REG[12] + INT_SIZE]), REG_SIZE * INT_SIZE);
+                    memcpy(REG, &(MEM[currentThreadId * MEM_SIZE_T + contextIndex]), REG_SIZE * INT_SIZE);
                     lastRunThreadId = currentThreadId;
                 }
                 // execute one instruction (Round-robin scheduling)
                 Instruction * ip = fetchInstruction(REG[8]);
                 if (ip == nullptr) {
+                    std::cout << currentThreadId << std::endl;
                     std::cout << "Out of Memory!" << std::endl;
                     return;
                 }
@@ -871,11 +879,24 @@ public:
                                 std::cout << "Overflow Exception! Created too many Threads." << std::endl;
                                 return;
                             } else {
+                                REG[ip->Oprand1] = availableThreadId;
                                 int tempPC = REG[8];  // store the PC of current thread
+                                int tempSL = REG[9];  // store the SL of current thread
+                                int tempSP = REG[10];  // store the SP of current thread
+                                int tempFP = REG[11];  // store the FP of current thread
+                                int tempSB = REG[12];  // store the SB of current thread
                                 REG[8] = ip->Oprand2;  // set the start point of new thread
-                                // set the running context of new thread
-                                memcpy(&(MEM[availableThreadId * MEM_SIZE_T + REG[12] + INT_SIZE]), REG, REG_SIZE * INT_SIZE);
+                                REG[9] += availableThreadId * MEM_SIZE_T;
+                                REG[10] += availableThreadId * MEM_SIZE_T;
+                                REG[11] += availableThreadId * MEM_SIZE_T;
+                                REG[12] += availableThreadId * MEM_SIZE_T;
+                               // set the running context of new thread
+                                memcpy(&(MEM[availableThreadId * MEM_SIZE_T + contextIndex]), REG, REG_SIZE * INT_SIZE);
                                 REG[8] = tempPC;  // restore the PC of current thread
+                                REG[9] = tempSL;
+                                REG[10] = tempSP;
+                                REG[11] = tempFP;
+                                REG[12] = tempSB;
                                 threadIdTable[availableThreadId] = true; // activate new thread
                             }
                         } else {
@@ -892,12 +913,14 @@ public:
                         break;
                     case BLK:
                         if (currentThreadId == 0) {
-                            int activatedThreadId;
+                            bool activatedThread = false;
                             // find an available Thread Id, which status is false in the threadIdTable
-                            for (activatedThreadId = 1; activatedThreadId < MAX_THREADS; activatedThreadId++) {
-                                if (threadIdTable[activatedThreadId]) break;
+                            for (int i = 1; i < MAX_THREADS; i++) {
+                                if (threadIdTable[i]) {
+                                    activatedThread = true;
+                                }
                             }
-                            if (activatedThreadId >= MAX_THREADS) {
+                            if (!activatedThread) {
                                 REG[8] += FIX_LENGTH;
                             }
                             // if there are still some threads activated, keep waiting (not changing PC)

@@ -39,6 +39,8 @@ ARRAY	.INT	0
 		.INT	0
 		.INT	0
 		.INT	0
+TMutex	.INT	-1
+AMutex	.INT	-1
 OverF	.INT	-999999
 UnderF	.INT	-111111
 
@@ -86,6 +88,34 @@ str2	.BYT	'F'				;Fibonacci of
 		.BYT	'f'
 		.BYT	32
 strl2	.INT	13
+
+str3	.BYT	'P'				;Part III (Multi-Threaded) 
+		.BYT	'a'
+		.BYT	'r'
+		.BYT	't'
+		.BYT	32
+		.BYT	'I'
+		.BYT	'I'
+		.BYT	'I'
+		.BYT	32
+		.BYT	'('
+		.BYT	'M'
+		.BYT	'u'
+		.BYT	'l'
+		.BYT	't'
+		.BYT	'i'
+		.BYT	'-'
+		.BYT	'T'
+		.BYT	'h'
+		.BYT	'r'
+		.BYT	'e'
+		.BYT	'a'
+		.BYT	'd'
+		.BYT	'e'
+		.BYT	'd'
+		.BYT	')'
+		.BYT	10
+strl3	.INT	26
 
 ;Code of the project
 
@@ -190,6 +220,65 @@ While1	MOV		R2, R1
 		JMP		While1
 Wend1	LDB		R3, newline
 		TRP		3
+
+;part III of the Program
+		LDB		R3, newline
+		TRP		3
+		LDR		R4, strl3		;print out str3
+		LDA		R5, str3
+print3	BRZ		R4, pend3
+		LDB		R3, R5
+		TRP		3
+		ADI		R5, 1
+		ADI		R4, -1
+		JMP		print3
+pend3			
+		SUB		R0, R0
+		STR		R0, CNT			;clear CNT, so the ARRAY can be reuse
+		LCK		TMutex			;lock TMutex
+LOOP2	LDR		R4, strl1		;print out string1
+		LDA		R5, str1
+print4	BRZ		R4, pend4
+		LDB		R3, R5
+		TRP		3
+		ADI		R5, 1
+		ADI		R4, -1
+		JMP		print4
+pend4	
+		TRP		2				;get x
+		BRZ		R3, QUIT2
+		RUN		R0, NewThread
+		JMP		LOOP2
+QUIT2
+		ULK		TMutex
+		BLK						;block the main thread to wait all other threads to finish
+; print the result array
+		LDB		R3, newline
+		TRP		3
+		LDA		R0, ARRAY		;pointer head -> ARRAY[0]
+		LDR		R1, CNT
+		LDR		R2, IntSize
+		ADI		R1, -1
+		MUL		R1, R2
+		ADD		R1, R0			;pointer tail -> ARRAY[CNT-1]
+While2	MOV		R2, R1
+		CMP		R2, R0			;compare two pointers
+		BLT		R2, Wend2
+		BRZ		R2, Wend2
+		LDR		R3, R0			;print ARRAY[head]
+		TRP		1
+		LDB		R3, space
+		TRP		3
+		LDR		R3, R1			;print ARRAY[tail]
+		TRP		1
+		LDB		R3, space
+		TRP		3
+		ADI		R0, 4			;move head pointer
+		ADI		R1, -4			;move tail pointer
+		JMP		While2
+Wend2	LDB		R3, newline
+		TRP		3
+
 PROEND	TRP		0
 
 OVERFLOW
@@ -290,5 +379,82 @@ RTN1	MOV		SP, FP			;De-allocate (SP = FP)
 		STR		R0, SP			;return the result 
 		JMR		R5				;Jump to Address in Register R5
 		
-		
-		
+NewThread
+		LCK		TMutex
+		ULK		TMutex
+		MOV		R7, SL
+		ADI		R7, -4
+		STR		R3, R7
+; ready to call fib(x), test overflow
+		MOV		R5, SP
+		ADI		R5, -12			;Adjust for space needed
+		CMP		R5, SL
+		BLT		R5, OVERFLOW
+; Create Activation Record and invoke fib(x)
+		MOV		R3, FP			;save FP in R3
+		MOV		FP, SP			;FP = SP
+		ADI		SP, -4			;Adjust Stack Pointer for Return Address
+		STR		R3, SP			;PFP = FP
+		ADI		SP, -4			;Adjust Stack Pointer for PFP
+		MOV		R7, SL
+		ADI		R7, -4
+		LDR		R5, R7
+		STR		R5, SP			;pass x as parameter
+		ADI		SP, -4			;Adjust Stack Pointer for x
+		MOV		R1, PC
+		ADI		R1, 36			;3 * FixLength = 36
+		STR		R1, FP
+		JMP		Fib
+		LDR		R0, SP
+		MOV		R7, SL
+		ADI		R7, -8
+		STR		R0, R7
+		LDR		R4, strl2		;print out str2 and result of fib(x)
+		LDA		R5, str2
+print5	BRZ		R4, pend5
+		LDB		R3, R5
+		TRP		3
+		ADI		R5, 1
+		ADI		R4, -1
+		JMP		print5
+pend5			
+		ADI		R7, 4
+		LDR		R3, R7
+		TRP		1
+		LDB		R3, space
+		TRP		3
+		LDB		R3, letterI
+		TRP		3
+		LDB		R3, letterS
+		TRP		3
+		LDB		R3, space
+		TRP		3
+		MOV		R3, R0
+		TRP		1
+		LDB		R3, newline
+		TRP		3
+; put Fibonacci number into the ARRAY if it is not full
+		LCK		AMutex
+		LDR		R1, CNT
+		ADI		R1, 2
+		LDR		R2, MaxLen
+		CMP		R2, R1			;check if ARRAY is full
+		BLT		R2, OVERFLOW
+		LDR		R1, CNT
+		LDR		R5, IntSize
+		MUL		R1, R5			;calculate the offset
+		LDA		R3, ARRAY
+		ADD		R3, R1			;pointer to ARRAY[CNT]
+		MOV		R7, SL
+		ADI		R7, -4
+		LDR		R4, R7			;get x value
+		STR		R4, R3
+		ADI		R3, 4			;pointing to the next slot
+		ADI		R7, -4
+		LDR		R0, R7			;get result of fib(x)
+		STR		R0, R3
+		LDR		R1, CNT
+		ADI		R1, 2
+		STR		R1, CNT			;CNT += 2
+		ULK		AMutex
+		END
